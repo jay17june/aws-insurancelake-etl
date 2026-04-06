@@ -8,9 +8,11 @@ from .glue_jobs_stack import GlueJobsStack
 from .data_lake_consumer_stack import DataLakeConsumerStack
 from .dynamodb_stack import DynamoDbStack
 from .athena_workgroup_stack import AthenaWorkgroupStack
+from .guidewire_appevents_stack import GuidewireAppEventsStack
 from .tagging import tag
 from .configuration import (
-    get_logical_id_prefix,
+    GUIDEWIRE_APPEVENTS_BUCKET,
+    get_logical_id_prefix, get_local_configuration,
 )
 
 class PipelineDeployStage(cdk.Stage):
@@ -107,9 +109,21 @@ class PipelineDeployStage(cdk.Stage):
             **kwargs,
         )
 
+        local_config = get_local_configuration(target_environment)
+        guidewire_appevents_stack = GuidewireAppEventsStack(
+            self,
+            f'{logical_id_prefix}EtlGuidewireAppEvents',
+            description='InsuranceLake stack for Guidewire AppEvents batching pipeline (SO9489) (uksb-1tu7mtee2)',
+            target_environment=target_environment,
+            env=env,
+            guidewire_bucket_name=local_config[GUIDEWIRE_APPEVENTS_BUCKET],
+            **kwargs,
+        )
+
         tag(step_function_stack, target_environment)
         tag(dynamodb_stack, target_environment)
         tag(glue_buckets_stack, target_environment)
         tag(data_lake_consumer_stack, target_environment)
         tag(athena_workgroup_stack, target_environment)
         tag(glue_jobs_stack, target_environment)
+        tag(guidewire_appevents_stack, target_environment)

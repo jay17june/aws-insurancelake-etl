@@ -1,0 +1,76 @@
+{
+    "input_spec": {
+        "table_description": "Guidewire ClaimCenter AppEvents - Claims",
+        "strict_schema_mapping": false,
+        "allow_schema_change": "evolve",
+        "json": {
+            "multiline": false
+        }
+    },
+
+    "transform_spec": {
+        "date": [
+            {
+                "field": "lossdate",
+                "format": "yyyy-MM-dd'T'HH:mm:ss'Z'"
+            },
+            {
+                "field": "reporteddate",
+                "format": "yyyy-MM-dd'T'HH:mm:ss'Z'"
+            },
+            {
+                "field": "policyeffectivedate",
+                "format": "yyyy-MM-dd"
+            },
+            {
+                "field": "policyexpirationdate",
+                "format": "yyyy-MM-dd"
+            }
+        ],
+
+        "changetype": {
+            "flagged": "boolean",
+            "incidentonly": "boolean",
+            "activities": "json",
+            "contacts": "json",
+            "exposures": "json",
+            "reserves": "json",
+            "policyaddresses": "json",
+            "vehicle_incidents": "json",
+            "notes": "json"
+        },
+
+        "combinecolumns": [
+            {
+                "field": "losslocation_full",
+                "format": "{}, {}, {} {}",
+                "source_columns": [
+                    "losslocation_address1",
+                    "losslocation_city",
+                    "losslocation_statecode",
+                    "losslocation_postalcode"
+                ]
+            }
+        ],
+
+        "lookup": [
+            {
+                "field": "lobname",
+                "source": "lobcode",
+                "lookup": "GWLOBCode",
+                "nomatch": "Unknown"
+            },
+            {
+                "field": "losslocation_fullstatename",
+                "source": "losslocation_statecode",
+                "lookup": "StateCd",
+                "nomatch": "Unknown"
+            }
+        ],
+
+        "literal": {
+            "sourcesystem": "GWClaimCenter",
+            "eventtype": "AppEvents"
+        }
+    }
+}

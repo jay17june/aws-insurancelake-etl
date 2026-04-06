@@ -25,6 +25,7 @@ LOGICAL_ID_PREFIX = 'logical_id_prefix'
 RESOURCE_NAME_PREFIX = 'resource_name_prefix'
 CODE_BRANCH = 'code_branch'
 LINEAGE='lineage'
+GUIDEWIRE_APPEVENTS_BUCKET = 'guidewire_appevents_bucket'
 
 # Used in Automated Outputs
 VPC_ID = 'vpc_id'
@@ -111,6 +112,7 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
                 LINEAGE: True,
                 # VPC_CIDR: '10.20.0.0/22',
                 CODE_BRANCH: 'develop',
+                GUIDEWIRE_APPEVENTS_BUCKET: 'dev-guidewire-appevents',
             },
             TEST: {
                 ACCOUNT_ID: active_account_id,
@@ -118,6 +120,7 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
                 LINEAGE: True,
                 # VPC_CIDR: '10.10.0.0/22',
                 CODE_BRANCH: 'test',
+                GUIDEWIRE_APPEVENTS_BUCKET: 'test-guidewire-appevents',
             },
             PROD: {
                 ACCOUNT_ID: active_account_id,
@@ -125,6 +128,7 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
                 LINEAGE: True,
                 # VPC_CIDR: '10.0.0.0/22',
                 CODE_BRANCH: 'main',
+                GUIDEWIRE_APPEVENTS_BUCKET: 'prod-guidewire-appevents',
             }
         }
 
