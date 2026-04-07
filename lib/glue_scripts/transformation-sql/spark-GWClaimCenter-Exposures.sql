@@ -1,3 +1,4 @@
+-- Current-state exposures: deduplicate by claimid, keeping the most recent event
 SELECT
     claimid
   , claimnumber
@@ -28,13 +29,18 @@ SELECT
   , assignedgroup_id
   , sourcesystem
   , eventtype
+  , execution_id
+  , year
+  , month
+  , day
 
-  , gwclaimcenter.exposures.execution_id
-  , gwclaimcenter.exposures.year
-  , gwclaimcenter.exposures.month
-  , gwclaimcenter.exposures.day
-
-FROM
-    gwclaimcenter.exposures
+FROM (
+    SELECT *, ROW_NUMBER() OVER (
+        PARTITION BY claimid
+        ORDER BY execution_id DESC
+    ) as rn
+    FROM gwclaimcenter.exposures
+)
+WHERE rn = 1
 
 ORDER BY lossdate DESC, claimnumber ASC

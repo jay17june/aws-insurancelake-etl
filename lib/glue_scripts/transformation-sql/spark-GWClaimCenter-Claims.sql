@@ -1,3 +1,4 @@
+-- Current-state claims: deduplicate by claimnumber, keeping the most recent event
 SELECT
     claimid
   , claimnumber
@@ -44,13 +45,18 @@ SELECT
   , assignedbyuser_id
   , sourcesystem
   , eventtype
+  , execution_id
+  , year
+  , month
+  , day
 
-  , gwclaimcenter.claims.execution_id
-  , gwclaimcenter.claims.year
-  , gwclaimcenter.claims.month
-  , gwclaimcenter.claims.day
-
-FROM
-    gwclaimcenter.claims
+FROM (
+    SELECT *, ROW_NUMBER() OVER (
+        PARTITION BY claimnumber
+        ORDER BY execution_id DESC
+    ) as rn
+    FROM gwclaimcenter.claims
+)
+WHERE rn = 1
 
 ORDER BY lossdate DESC, claimnumber ASC

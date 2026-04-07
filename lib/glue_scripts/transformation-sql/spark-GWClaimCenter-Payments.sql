@@ -1,3 +1,4 @@
+-- Current-state payments: deduplicate by paymentid, keeping the most recent event
 SELECT
     paymentid
   , claimid
@@ -27,13 +28,18 @@ SELECT
   , validationlevel
   , sourcesystem
   , eventtype
+  , execution_id
+  , year
+  , month
+  , day
 
-  , gwclaimcenter.payments.execution_id
-  , gwclaimcenter.payments.year
-  , gwclaimcenter.payments.month
-  , gwclaimcenter.payments.day
-
-FROM
-    gwclaimcenter.payments
+FROM (
+    SELECT *, ROW_NUMBER() OVER (
+        PARTITION BY paymentid
+        ORDER BY execution_id DESC
+    ) as rn
+    FROM gwclaimcenter.payments
+)
+WHERE rn = 1
 
 ORDER BY createtime DESC, claimnumber ASC

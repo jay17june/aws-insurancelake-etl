@@ -333,7 +333,11 @@ def main():
     )
 
     # Explicitly clear the existing partition in S3 and Glue Catalog (i.e. overwrite)
-    clear_partition(args['target_database_name'], args['table_name'], partition, glueContext)
+    # partition_append mode skips clearing to accumulate incremental event data
+    if not input_spec.get('partition_append', False):
+        clear_partition(args['target_database_name'], args['table_name'], partition, glueContext)
+    else:
+        print('Partition append mode enabled: skipping clear_partition to accumulate data')
 
     # saveAsTable on new tables fails in strict mode even with only 1 partition
     spark.conf.set('hive.exec.dynamic.partition.mode', 'nonstrict')
