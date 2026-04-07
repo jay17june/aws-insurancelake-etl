@@ -2,7 +2,7 @@
 
 ## Overview
 
-This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake, enabling automated ingestion, transformation, and analytics of claim event data. A batching pipeline consolidates individual JSON events into optimized JSONL batches, **split by event type** into separate InsuranceLake tables (Claims, Exposures, Payments), which InsuranceLake processes through its standard Collect-Cleanse-Consume architecture.
+This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake, enabling automated ingestion, transformation, and analytics of claim event data. A batching pipeline consolidates individual JSON events into optimized JSONL batches, **split by event type** into separate InsuranceLake tables (Claims, Exposures, Payments). The **cleanse layer accumulates all events** (append-only) preserving full history for audit and compliance, while the **consume layer deduplicates to current-state** tables optimized for analytics.
 
 ## Architecture
 
@@ -54,19 +54,34 @@ Guidewire ClaimCenter (SaaS)
 │  InsuranceLake ETL Pipeline (x3)    │
 │  Step Functions → Glue Jobs         │
 │                                     │
-│  Each table has its own:            │
-│  - Schema mapping (CSV)             │
-│  - Transform spec (JSON)            │
-│  - Data quality rules (JSON)        │
-│  - Consume SQL (Spark SQL)          │
+│  1. Collect → Cleanse               │
+│     - Schema mapping + transforms   │
+│     - Data quality checks           │
+│     - APPEND to partition           │
+│       (partition_append: true)      │
+│     - Full event history preserved  │
+│                                     │
+│  2. Cleanse → Consume               │
+│     - Reads ALL cleanse data        │
+│     - Deduplicates by entity key    │
+│       (ROW_NUMBER, latest wins)     │
+│     - Writes current-state table    │
 └──────────────┬──────────────────────┘
                ▼
 ┌─────────────────────────────────────┐
 │  Analytics Layer (Athena)           │
 │                                     │
+│  CLEANSE (all events, append-only): │
 │  gwclaimcenter.claims               │
 │  gwclaimcenter.exposures            │
 │  gwclaimcenter.payments             │
+│                                     │
+│  CONSUME (current state, deduped):  │
+│  gwclaimcenter_consume.claims       │
+│  gwclaimcenter_consume.exposures    │
+│  gwclaimcenter_consume.payments     │
+│                                     │
+│  VIEWS (nested JSON exploded):      │
 │  gwclaimcenter.vw_claim_activities  │
 │  gwclaimcenter.vw_claim_exposures   │
 │  gwclaimcenter.vw_claim_reserves    │
@@ -89,6 +104,109 @@ The batching Lambda classifies each AppEvent by parsing the event type from the 
 | `PaymentChanged` | `cc:NNNN-PaymentChanged-*.json` | `GWClaimCenter/Payments/` | Payment status changes |
 
 **Why split by event type?** Each event type has a different schema. Claim events have `lossDate`, `lossLocation`, `insured`, and `contacts`. Payment events have `amount`, `checkNumber`, `payee`, and `lineItems` but no loss details. Mixing them in one table causes data quality failures (e.g., `lossDate` completeness drops to 58% because payment events don't carry it).
+
+## Data Layer Model
+
+InsuranceLake uses a 3-layer architecture. For Guidewire AppEvents, each layer serves a distinct purpose:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  COLLECT (Raw)                                                    │
+│  S3: GWClaimCenter/Claims/batch-20260407151126.jsonl             │
+│  Format: JSONL (one JSON event per line)                          │
+│  Retention: All batch files preserved                             │
+└──────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  CLEANSE (All Events - Append Only)                               │
+│  S3: Parquet, partitioned by year/month/day                       │
+│  gwclaimcenter.claims      → 15 events (includes duplicates)     │
+│  gwclaimcenter.exposures   → 13 events                           │
+│  gwclaimcenter.payments    →  3 events                           │
+│                                                                   │
+│  Every 15-min batch APPENDS to the partition (no overwrite).      │
+│  Full event history preserved for audit, compliance, and          │
+│  point-in-time analysis.                                          │
+│                                                                   │
+│  Enabled by: "partition_append": true in input_spec               │
+└──────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  CONSUME (Current State - Deduplicated)                           │
+│  S3: Parquet, rebuilt from full cleanse on every pipeline run      │
+│  gwclaimcenter_consume.claims      → 10 unique claims            │
+│  gwclaimcenter_consume.exposures   → 13 unique exposures         │
+│  gwclaimcenter_consume.payments    →  3 unique payments          │
+│                                                                   │
+│  Spark SQL reads ALL cleanse data, deduplicates using             │
+│  ROW_NUMBER() OVER (PARTITION BY entity_key ORDER BY              │
+│  execution_id DESC), keeping only the latest event per entity.    │
+│                                                                   │
+│  Overwrites consume table on each run (intentional — always       │
+│  rebuilt from complete cleanse history).                           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Design?
+
+| Stakeholder | Need | Layer |
+|------------|------|-------|
+| **Claims Adjusters** | Current state of each claim (one row, latest data) | Consume |
+| **Finance** | Payment totals per claim (join claims + payments) | Consume |
+| **Actuaries** | Point-in-time loss development, all state transitions | Cleanse |
+| **Regulators** | Full audit trail of every change | Cleanse |
+| **Executives** | Claims by LOB, geography, trends | Consume |
+| **Data Engineers** | Raw event payloads for debugging | Collect |
+
+### Partition Append Mode
+
+Standard InsuranceLake behavior is to **overwrite** each partition on every pipeline run (`clear_partition`). This works for full-load sources but destroys data for incremental event streams.
+
+The `partition_append` option (added to `input_spec` in the transform spec) skips the partition clear:
+
+```json
+{
+    "input_spec": {
+        "partition_append": true,
+        ...
+    }
+}
+```
+
+When enabled:
+- Each batch **appends** new parquet files to the existing daily partition
+- Multiple batches per day coexist in the same `year=YYYY/month=MM/day=DD/` partition
+- The cleanse table grows with every pipeline run
+- The consume SQL handles deduplication by reading ALL cleanse data
+
+This option is **backwards-compatible** — existing tables default to `false` (overwrite behavior preserved).
+
+### Current-State Deduplication
+
+The consume Spark SQL deduplicates events to produce one row per entity:
+
+```sql
+-- Claims: one row per claim, latest event wins
+SELECT ...
+FROM (
+    SELECT *, ROW_NUMBER() OVER (
+        PARTITION BY claimnumber
+        ORDER BY execution_id DESC
+    ) as rn
+    FROM gwclaimcenter.claims
+)
+WHERE rn = 1
+```
+
+| Table | Dedup Key | Ordering | Effect |
+|-------|-----------|----------|--------|
+| Claims | `claimnumber` | `execution_id DESC` | Latest ClaimCreated or ClaimChanged per claim |
+| Exposures | `claimid` | `execution_id DESC` | Latest ExposureAdded or ExposureChanged per claim |
+| Payments | `paymentid` | `execution_id DESC` | Latest PaymentCreated or PaymentChanged per payment |
+
+The `execution_id` is a UUID assigned by InsuranceLake's trigger Lambda for each pipeline run, ensuring deterministic ordering of batches.
 
 ## Prerequisites
 
@@ -282,6 +400,32 @@ GROUP BY losslocation_statecode, claimstate
 ORDER BY claim_count DESC;
 ```
 
+**Event history for a claim (from cleanse, all events):**
+```sql
+SELECT claimnumber, claimstate, execution_id, year, month, day
+FROM gwclaimcenter.claims
+WHERE claimnumber = '000-00-005976'
+ORDER BY execution_id;
+```
+
+**Claims with multiple events (state transitions):**
+```sql
+SELECT claimnumber, COUNT(*) as event_count
+FROM gwclaimcenter.claims
+GROUP BY claimnumber
+HAVING COUNT(*) > 1
+ORDER BY event_count DESC;
+```
+
+**Verify deduplication (cleanse vs consume row counts):**
+```sql
+-- Cleanse: all events (grows with each batch)
+SELECT COUNT(*) as total_events FROM gwclaimcenter.claims;
+
+-- Consume: unique claims (deduplicated)
+SELECT COUNT(*) as unique_claims FROM gwclaimcenter_consume.claims;
+```
+
 ## Table Schemas
 
 ### Claims Table (`gwclaimcenter.claims`)
@@ -444,19 +588,31 @@ Each table has its own stringify field list since the nested structures differ:
 
 ### InsuranceLake Data Catalog
 
-| Database | Table/View | Source |
-|----------|-----------|--------|
-| `gwclaimcenter` | `claims` | ClaimCreated, ClaimChanged events |
-| `gwclaimcenter` | `exposures` | ExposureAdded, ExposureChanged events |
-| `gwclaimcenter` | `payments` | PaymentCreated, PaymentChanged events |
-| `gwclaimcenter_consume` | `claims` | Flat claims with computed `days_to_report` |
-| `gwclaimcenter_consume` | `exposures` | Flat exposure fields |
-| `gwclaimcenter_consume` | `payments` | Flat payment fields |
-| `gwclaimcenter` | `vw_claim_activities` | Athena view - exploded activities |
-| `gwclaimcenter` | `vw_claim_exposures` | Athena view - exploded exposures |
-| `gwclaimcenter` | `vw_claim_reserves` | Athena view - exploded reserves |
-| `gwclaimcenter` | `vw_claim_contacts` | Athena view - exploded contacts |
-| `gwclaimcenter` | `vw_claim_vehicle_incidents` | Athena view - exploded vehicle incidents |
+**Cleanse Layer** (all events, append-only, full history):
+
+| Database | Table | Source | Pattern |
+|----------|-------|--------|---------|
+| `gwclaimcenter` | `claims` | ClaimCreated, ClaimChanged | Append-only, multiple events per claim |
+| `gwclaimcenter` | `exposures` | ExposureAdded, ExposureChanged | Append-only, multiple events per exposure |
+| `gwclaimcenter` | `payments` | PaymentCreated, PaymentChanged | Append-only, multiple events per payment |
+
+**Consume Layer** (current state, deduplicated, rebuilt on each run):
+
+| Database | Table | Dedup Key | Description |
+|----------|-------|-----------|-------------|
+| `gwclaimcenter_consume` | `claims` | claimnumber | One row per claim, latest state, includes `days_to_report` |
+| `gwclaimcenter_consume` | `exposures` | claimid | One row per claim's exposure set, latest state |
+| `gwclaimcenter_consume` | `payments` | paymentid | One row per payment, latest status |
+
+**Athena Views** (nested JSON exploded from cleanse layer):
+
+| Database | View | Source |
+|----------|------|--------|
+| `gwclaimcenter` | `vw_claim_activities` | Exploded activities from claims cleanse |
+| `gwclaimcenter` | `vw_claim_exposures` | Exploded exposures from claims cleanse |
+| `gwclaimcenter` | `vw_claim_reserves` | Exploded reserves from claims cleanse |
+| `gwclaimcenter` | `vw_claim_contacts` | Exploded contacts from claims cleanse |
+| `gwclaimcenter` | `vw_claim_vehicle_incidents` | Exploded vehicle incidents from claims cleanse |
 
 ## Monitoring
 
@@ -494,6 +650,10 @@ The InsuranceLake Step Functions state machine publishes to an SNS topic on pipe
 | Athena view fails with "Column alias list" | Map UNNEST needs two aliases (key, value) | Use `as t(key_alias, value_alias)` syntax |
 | DQ halt rule fails on Claims | Non-claim events mixed in Claims table | Verify Lambda routing — check S3 key pattern matches regex |
 | DQ halt rule fails on Payments | Missing paymentid or claimnumber | Check source data quality in Guidewire |
+| Cleanse table only has latest batch | `partition_append` not set to `true` | Add `"partition_append": true` to `input_spec` in transform spec |
+| Consume table has duplicate rows | Dedup key mismatch or missing `ROW_NUMBER()` in consume SQL | Verify the `PARTITION BY` key matches the entity's unique identifier |
+| Schema change error on Payments | PaymentCreated/Changed have different fields | Set `"allow_schema_change": "permissive"` in Payments transform spec |
+| Cleanse partition grows indefinitely | Expected behavior with `partition_append` | Implement periodic compaction or lifecycle rules on old partitions |
 
 ## Customization
 
