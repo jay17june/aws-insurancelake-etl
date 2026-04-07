@@ -78,7 +78,7 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
         local_mapping = {
             DEPLOYMENT: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
 
                 # If you use Github, Gitlab, Bitbucket Cloud or any other supported CodeConnections
                 # provider, specify the CodeConnections ARN
@@ -108,27 +108,27 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
             },
             DEV: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
                 LINEAGE: True,
                 # VPC_CIDR: '10.20.0.0/22',
                 CODE_BRANCH: 'develop',
-                GUIDEWIRE_APPEVENTS_BUCKET: 'dev-guidewire-appevents',
+                GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
             },
             TEST: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
                 LINEAGE: True,
                 # VPC_CIDR: '10.10.0.0/22',
                 CODE_BRANCH: 'test',
-                GUIDEWIRE_APPEVENTS_BUCKET: 'test-guidewire-appevents',
+                GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
             },
             PROD: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
                 LINEAGE: True,
                 # VPC_CIDR: '10.0.0.0/22',
                 CODE_BRANCH: 'main',
-                GUIDEWIRE_APPEVENTS_BUCKET: 'prod-guidewire-appevents',
+                GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
             }
         }
 

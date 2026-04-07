@@ -61,13 +61,14 @@ class GuidewireAppEventsStack(cdk.Stack):
         self.buckets = ImportedBuckets(self, logical_id_suffix='GuidewireAppEvents')
 
         # SQS Dead Letter Queue for failed messages
+        # Uses SQS managed encryption (SSE-SQS) instead of KMS to allow S3
+        # event notifications without requiring KMS key policy changes
         dlq = sqs.Queue(
             self,
             f'{target_environment}{self.logical_id_prefix}GwAppEventsDLQ',
             queue_name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-appevents-dlq',
             retention_period=cdk.Duration.days(14),
-            encryption=sqs.QueueEncryption.KMS,
-            encryption_master_key=self.buckets.s3_kms_key,
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
             enforce_ssl=True,
             removal_policy=self.removal_policy,
         )
@@ -79,8 +80,7 @@ class GuidewireAppEventsStack(cdk.Stack):
             queue_name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-appevents-queue',
             visibility_timeout=cdk.Duration.seconds(300),
             retention_period=cdk.Duration.days(4),
-            encryption=sqs.QueueEncryption.KMS,
-            encryption_master_key=self.buckets.s3_kms_key,
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
             enforce_ssl=True,
             dead_letter_queue=sqs.DeadLetterQueue(
                 max_receive_count=3,

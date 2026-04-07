@@ -81,11 +81,20 @@ def lambda_handler(event: dict, _) -> dict:
                     )
                     content = obj_response['Body'].read().decode('utf-8').strip()
 
-                    # Validate parseable JSON before adding to batch
-                    json.loads(content)
+                    # Parse JSON and stringify nested collections to prevent
+                    # Spark from inferring structs with dynamic colon-containing
+                    # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
+                    event_data = json.loads(content)
+                    STRINGIFY_FIELDS = [
+                        'activities', 'contacts', 'exposures', 'reserves',
+                        'vehicle-incidents', 'vehicleIncidents', 'notes',
+                        'policyAddresses',
+                    ]
+                    for field in STRINGIFY_FIELDS:
+                        if field in event_data and not isinstance(event_data[field], str):
+                            event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
 
-                    # Collapse to single line for JSONL format
-                    single_line = json.dumps(json.loads(content), separators=(',', ':'))
+                    single_line = json.dumps(event_data, separators=(',', ':'))
                     all_events.append(single_line)
 
                 receipts_to_delete.append(receipt_handle)

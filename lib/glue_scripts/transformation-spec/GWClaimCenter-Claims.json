@@ -12,33 +12,15 @@
         "date": [
             {
                 "field": "lossdate",
-                "format": "yyyy-MM-dd'T'HH:mm:ss'Z'"
+                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
             },
             {
                 "field": "reporteddate",
-                "format": "yyyy-MM-dd'T'HH:mm:ss'Z'"
-            },
-            {
-                "field": "policyeffectivedate",
-                "format": "yyyy-MM-dd"
-            },
-            {
-                "field": "policyexpirationdate",
-                "format": "yyyy-MM-dd"
+                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
             }
         ],
 
-        "changetype": {
-            "flagged": "boolean",
-            "incidentonly": "boolean",
-            "activities": "json",
-            "contacts": "json",
-            "exposures": "json",
-            "reserves": "json",
-            "policyaddresses": "json",
-            "vehicle_incidents": "json",
-            "notes": "json"
-        },
+        "changetype": {},
 
         "combinecolumns": [
             {
@@ -50,21 +32,6 @@
                     "losslocation_statecode",
                     "losslocation_postalcode"
                 ]
-            }
-        ],
-
-        "lookup": [
-            {
-                "field": "lobname",
-                "source": "lobcode",
-                "lookup": "GWLOBCode",
-                "nomatch": "Unknown"
-            },
-            {
-                "field": "losslocation_fullstatename",
-                "source": "losslocation_statecode",
-                "lookup": "StateCd",
-                "nomatch": "Unknown"
             }
         ],
 

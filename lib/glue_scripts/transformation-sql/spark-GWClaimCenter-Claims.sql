@@ -3,7 +3,6 @@ SELECT
   , claimnumber
   , claimstate
   , lobcode
-  , lobname
   , lossdate
   , losstype
   , losscause
@@ -20,20 +19,16 @@ SELECT
   , validationlevel
   , assignmentstatus
   , policynumber
-  , policyid
-  , policyeffectivedate
-  , policyexpirationdate
-  , policyproductcode
+  , policy_policynumber
+  , policytype
+  , producercode
+  , policycurrency
   , strategycode
-  , strategyname
   , losslocation_address1
-  , losslocation_address2
   , losslocation_city
   , losslocation_statecode
-  , losslocation_statename
-  , losslocation_fullstatename
   , losslocation_postalcode
-  , losslocation_country
+  , losslocation_county
   , losslocation_full
   , insured_name
   , insured_contactid

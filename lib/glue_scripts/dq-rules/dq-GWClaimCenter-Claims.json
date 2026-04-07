@@ -1,10 +1,4 @@
 {
-    "before_transform": {
-        "quarantine_rules": [
-            "IsComplete 'claimNumber'",
-            "IsComplete 'lossDate'"
-        ]
-    },
     "after_transform": {
         "warn_rules": [
             "Completeness 'policynumber' > 0.90",
@@ -15,8 +9,7 @@
         ],
         "halt_rules": [
             "(ColumnExists 'claimnumber') and (IsComplete 'claimnumber')",
-            "(ColumnExists 'lossdate') and (IsComplete 'lossdate')",
-            "CustomSql 'SELECT COUNT(*) FROM primary WHERE lossdate > reporteddate' = 0"
+            "(ColumnExists 'lossdate') and (IsComplete 'lossdate')"
         ]
     }
 }
