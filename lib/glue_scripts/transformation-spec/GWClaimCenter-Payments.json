@@ -2,7 +2,7 @@
     "input_spec": {
         "table_description": "Guidewire ClaimCenter AppEvents - Payments",
         "strict_schema_mapping": false,
-        "allow_schema_change": "evolve",
+        "allow_schema_change": "permissive",
         "json": {
             "multiline": false
         }
