@@ -131,7 +131,7 @@ class GuidewireAppEventsStack(cdk.Stack):
             environment={
                 'SQS_QUEUE_URL': queue.queue_url,
                 'COLLECT_BUCKET_NAME': self.buckets.raw.bucket_name,
-                'TARGET_PREFIX': 'GWClaimCenter/Claims',
+                'SOURCE_SYSTEM': 'GWClaimCenter',
             },
             timeout=cdk.Duration.minutes(5),
             log_group=cloudwatch_log_group,

@@ -1,0 +1,28 @@
+{
+    "input_spec": {
+        "table_description": "Guidewire ClaimCenter AppEvents - Payments",
+        "strict_schema_mapping": false,
+        "allow_schema_change": "evolve",
+        "json": {
+            "multiline": false
+        }
+    },
+
+    "transform_spec": {
+        "timestamp": [
+            {
+                "field": "createtime",
+                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+            },
+            {
+                "field": "issuedate",
+                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+            }
+        ],
+
+        "literal": {
+            "sourcesystem": "GWClaimCenter",
+            "eventtype": "Payment"
+        }
+    }
+}

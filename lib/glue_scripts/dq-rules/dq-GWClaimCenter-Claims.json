@@ -3,7 +3,7 @@
         "warn_rules": [
             "Completeness 'policynumber' > 0.90",
             "Completeness 'lobcode' > 0.90",
-            "Completeness 'reporteddate' > 0.80",
+            "Completeness 'reporteddate' > 0.90",
             "Completeness 'insured_name' > 0.80",
             "ColumnValues 'claimstate' in [ 'open', 'closed', 'draft', 'archived' ]"
         ],

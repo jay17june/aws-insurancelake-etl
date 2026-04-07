@@ -1,0 +1,28 @@
+{
+    "input_spec": {
+        "table_description": "Guidewire ClaimCenter AppEvents - Exposures",
+        "strict_schema_mapping": false,
+        "allow_schema_change": "evolve",
+        "json": {
+            "multiline": false
+        }
+    },
+
+    "transform_spec": {
+        "date": [
+            {
+                "field": "lossdate",
+                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+            },
+            {
+                "field": "reporteddate",
+                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+            }
+        ],
+
+        "literal": {
+            "sourcesystem": "GWClaimCenter",
+            "eventtype": "Exposure"
+        }
+    }
+}
