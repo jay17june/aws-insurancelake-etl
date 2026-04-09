@@ -655,6 +655,74 @@ The InsuranceLake Step Functions state machine publishes to an SNS topic on pipe
 | Schema change error on Payments | PaymentCreated/Changed have different fields | Set `"allow_schema_change": "permissive"` in Payments transform spec |
 | Cleanse partition grows indefinitely | Expected behavior with `partition_append` | Implement periodic compaction or lifecycle rules on old partitions |
 
+## Cost Estimate
+
+### Cost Breakdown by Service
+
+Costs are based on `us-east-1` pricing. The dominant cost is **AWS Glue** — all other services are negligible at typical AppEvents volumes.
+
+| Service | Resource | Unit Cost | Usage (1K events/day) | Monthly Cost |
+|---------|----------|-----------|----------------------|-------------|
+| **AWS Glue** | Collect-to-Cleanse job | $0.44/DPU-hour | ~190 runs x 2 DPU x 2 min | **~$110** |
+| **AWS Glue** | Cleanse-to-Consume job | $0.44/DPU-hour | ~190 runs x 2 DPU x 3 min | **~$165** |
+| **Lambda** | Batching Lambda | $0.20/1M requests | 96 invocations/day x 3s | **~$0.01** |
+| **SQS** | Event queue + DLQ | $0.40/1M requests | ~30K messages/month | **Free** (free tier) |
+| **S3** | Collect + Cleanse + Consume | $0.023/GB/month | ~5 GB/month | **~$0.12** |
+| **Step Functions** | Pipeline orchestration | $0.025/1K transitions | ~190 executions/day x 5 states | **~$2.14** |
+| **DynamoDB** | Audit + DQ tables | On-demand | ~1K writes/day | **~$1.50** |
+| **EventBridge** | Scheduled rule | $1/1M events | 96/day | **Free** |
+| **Athena** | Ad-hoc queries | $5/TB scanned | Varies by usage | **~$1-5** |
+| **CloudWatch** | Logs | $0.50/GB ingested | ~1 GB/month | **~$0.50** |
+| | | | **Estimated Total** | **~$280-285/month** |
+
+### How Glue Costs Work
+
+AWS Glue is billed per **DPU-hour** with a **1-minute minimum** per run. With auto-scaling enabled (configured in this integration), each job starts with 2 workers and scales up only if needed.
+
+For typical AppEvents batches (5-20 events per batch):
+- **Collect-to-Cleanse**: ~90-120 seconds, 2 DPUs (auto-scaled minimum)
+- **Cleanse-to-Consume**: ~120-180 seconds, 2 DPUs (reads full cleanse table for dedup)
+- **Cost per pipeline run**: ~$0.03-0.04
+
+The number of Glue runs depends on how many event types appear in each 15-minute batch:
+- 96 Lambda invocations/day (every 15 min)
+- Each invocation produces 1-3 JSONL files (Claims, Exposures, Payments)
+- Each JSONL triggers 2 Glue jobs (collect-to-cleanse + cleanse-to-consume)
+- Typical: ~190 Glue job pairs/day (not all batches have all 3 event types)
+
+### Cost at Different Volumes
+
+| Volume | Events/Day | Glue Runs/Day | Monthly Glue Cost | Total Monthly |
+|--------|-----------|---------------|-------------------|---------------|
+| **Low** (dev/test) | 100-500 | ~100 | ~$90 | ~$95 |
+| **Medium** (typical) | 500-2,000 | ~190 | ~$275 | ~$280 |
+| **High** (large carrier) | 2,000-10,000 | ~250 | ~$360 | ~$370 |
+
+At all volumes, the batch interval stays at 15 minutes — higher volumes just mean more events per batch, not more runs. Glue auto-scaling handles larger batches by adding workers.
+
+### Cost Optimization Options
+
+| Optimization | Savings | Trade-off |
+|-------------|---------|-----------|
+| **Increase batch interval to 1 hour** | ~75% Glue cost reduction | Data freshness drops from 15 min to 1 hour |
+| **Use Glue Flex (spot) workers** | ~60% Glue cost reduction | Jobs may be preempted (auto-retried by Step Functions) |
+| **Reduce Glue max workers** | Lower DPU ceiling | Larger batches take longer |
+| **Disable consume job for some tables** | ~50% Glue cost reduction | No current-state tables; query cleanse directly |
+| **Consolidate to daily batches** | ~95% Glue cost reduction | Data available only once per day |
+
+### Cost Comparison: Batched vs Per-File
+
+Without the batching Lambda, each AppEvent file would trigger its own pipeline:
+
+| Approach | 1,000 events/day | Glue Runs/Day | Monthly Cost |
+|----------|-------------------|---------------|-------------|
+| **Per-file (no batching)** | 1,000 | 2,000 | **~$2,900** |
+| **Batched every 15 min** | 1,000 | ~190 | **~$280** |
+| **Batched every hour** | 1,000 | ~48 | **~$70** |
+| **Batched daily** | 1,000 | ~6 | **~$9** |
+
+The batching Lambda reduces Glue costs by **~90%** compared to per-file processing.
+
 ## Customization
 
 ### Adding New AppEvent Types
