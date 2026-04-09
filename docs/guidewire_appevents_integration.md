@@ -89,7 +89,7 @@ git checkout feature/guidewire-appevents-integration
 # Deploy with your configuration (no code changes needed)
 cdk deploy --app "python3 app.py" \
   --context env=prod \
-  --context guidewire-bucket=your-gw-appevents-bucket \
+  --context gwappevents-landing-bucket=your-gw-appevents-bucket \
   --context region=us-east-1
 ```
 
@@ -101,7 +101,7 @@ Fine-tune the integration for your specific requirements using CDK context param
 # Performance tuning for high-volume scenarios:
 cdk deploy --app "python3 app.py" \
   --context env=prod \
-  --context guidewire-bucket=prod-gw-appevents \
+  --context gwappevents-landing-bucket=prod-gw-appevents \
   --context region=us-west-2 \
   --context lambda-memory=2048 \
   --context lambda-batch-size=500 \
@@ -122,7 +122,7 @@ cdk deploy --app "python3 app.py" \
 | Parameter | Default | Range | Purpose |
 |-----------|---------|-------|---------|
 | `env` | Dev | Dev/Test/Prod | Target environment |
-| `guidewire-bucket` | auto-generated | any | S3 bucket where Guidewire writes AppEvents |
+| `gwappevents-landing-bucket` | auto-generated | any | S3 bucket where Guidewire writes AppEvents |
 | `region` | us-east-2 | any AWS region | AWS region for all resources |
 | `lambda-memory` | 512 | 128-10240 MB | Lambda memory (higher = faster processing) |
 | `lambda-timeout` | 15 | 1-15 minutes | Lambda timeout for large batches |
@@ -265,7 +265,7 @@ We recommend creating a Budget with Cost Explorer to track expenses. Estimated c
 ```bash
 cdk deploy --app "python3 app.py" \
   --context env=Prod \
-  --context guidewire-bucket=prod-gw-appevents-bucket \
+  --context gwappevents-landing-bucket=prod-gw-appevents-bucket \
   --context region=us-east-1 \
   --context lambda-memory=2048 \
   --context lambda-concurrency=25 \
@@ -276,7 +276,7 @@ cdk deploy --app "python3 app.py" \
 ```bash
 cdk deploy --app "python3 app.py" \
   --context env=Dev \
-  --context guidewire-bucket=dev-gw-appevents-bucket \
+  --context gwappevents-landing-bucket=dev-gw-appevents-bucket \
   --context lambda-memory=256 \
   --context glue-workers-standard=10
 ```

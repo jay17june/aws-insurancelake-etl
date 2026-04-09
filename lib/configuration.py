@@ -279,7 +279,7 @@ def get_context_configuration(app, target_environment: str) -> dict:
 
     # Get context values with defaults
     region = app.node.try_get_context('region') or 'us-east-2'
-    gw_bucket = app.node.try_get_context('guidewire-bucket') or f'gw-appevents-{active_account_id}-collect'
+    gw_bucket = app.node.try_get_context('gwappevents-landing-bucket') or f'gw-appevents-{active_account_id}-collect'
 
     # Numeric parameters with validation
     lambda_memory = int(app.node.try_get_context('lambda-memory') or 512)

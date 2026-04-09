@@ -4,7 +4,7 @@
     "_comment": "Guidewire AppEvents Integration Configuration - Override with --context key=value",
     "env": "Dev",
     "region": "us-east-2",
-    "guidewire-bucket": "",
+    "gwappevents-landing-bucket": "",
     "lambda-memory": 512,
     "lambda-timeout": 15,
     "lambda-batch-size": 100,
