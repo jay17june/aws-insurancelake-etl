@@ -2,7 +2,7 @@
 
 ## Overview
 
-This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake, enabling automated ingestion, transformation, and analytics of claim event data. A batching pipeline consolidates individual JSON events into optimized JSONL batches, **split by event type** into separate InsuranceLake tables (Claims, Exposures, Payments). The **cleanse layer accumulates all events** (append-only) preserving full history for audit and compliance, while the **consume layer deduplicates to current-state** tables optimized for analytics.
+This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake, enabling automated ingestion, transformation, and analytics of claim event data. An **SQS-triggered batching Lambda** consolidates individual JSON events into optimized JSONL batches, **split by event type** into separate InsuranceLake tables (Claims, Exposures, Payments). The Lambda **auto-scales with queue depth** to handle surges (CAT events at 10K+/hour). The **cleanse layer accumulates all events** (append-only) preserving full history for audit and compliance, while the **consume layer deduplicates to current-state** tables optimized for analytics. A separate **bulk migration Glue job** handles one-time loads of 1M+ events.
 
 ## Architecture
 
@@ -24,15 +24,19 @@ Guidewire ClaimCenter (SaaS)
 ┌─────────────────────────────────────┐
 │  SQS Queue (buffer)                 │
 │  + Dead Letter Queue (3 retries)    │
+│  Visibility timeout: 960s           │
 └──────────────┬──────────────────────┘
-               │ EventBridge schedule (every 15 min)
+               │ SQS Event Source Mapping
+               │ (batch_size=100, max_concurrency=10)
                ▼
 ┌─────────────────────────────────────┐
-│  Batching Lambda                    │
-│  - Drains SQS queue                 │
+│  Batching Lambda (auto-scaling)     │
+│  - Receives SQS batch (up to 100)  │
 │  - Classifies events by type        │
 │  - Stringifies nested collections   │
 │  - Writes separate JSONL per group  │
+│  - Partial failure reporting        │
+│  Timeout: 15 min, Memory: 512 MB   │
 └──────┬───────────┬──────────┬───────┘
        │           │          │
        ▼           ▼          ▼
@@ -315,30 +319,55 @@ aws sqs get-queue-attributes \
 
 ### Manual End-to-End Test
 
-```bash
-# 1. Invoke the batching Lambda manually
-aws lambda invoke \
-  --function-name dev-insurancelake-gw-appevents-batching \
-  --region us-east-1 \
-  --payload '{}' /tmp/response.json && cat /tmp/response.json
-# Expected: "Batched 10 events (Claims:5, Exposures:4, Payments:1)"
+With SQS event source mapping, the Lambda triggers automatically when events arrive in the queue. No manual invocation needed — just upload a file to the GW bucket:
 
-# 2. Check JSONL files were written to separate paths in collect bucket
+```bash
+# 1. Upload a test event to the Guidewire bucket (triggers S3→SQS→Lambda automatically)
+aws s3 cp test-event.json s3://gw-appevents-{account}-collect/cc:9999/cc:9999-ClaimCreated-20260409T120000Z-001.json \
+  --region us-east-1
+
+# 2. Wait ~30 seconds (SQS batching window), then check Lambda was invoked
+aws logs tail /aws/lambda/dev-insurancelake-gw-appevents-batching \
+  --region us-east-1 --since 5m --format short
+
+# 3. Check JSONL files were written to collect bucket
 aws s3 ls s3://dev-insurancelake-{account}-us-east-1-collect/GWClaimCenter/Claims/
 aws s3 ls s3://dev-insurancelake-{account}-us-east-1-collect/GWClaimCenter/Exposures/
 aws s3 ls s3://dev-insurancelake-{account}-us-east-1-collect/GWClaimCenter/Payments/
 
-# 3. Monitor the Step Functions executions (one per table)
+# 4. Monitor the Step Functions executions (one per table)
 aws stepfunctions list-executions \
   --state-machine-arn $(aws stepfunctions list-state-machines --region us-east-1 \
     --query 'stateMachines[?contains(name, `insurancelake`)].stateMachineArn' --output text) \
   --region us-east-1 --max-results 5 \
   --query 'executions[].{Name:name,Status:status}' --output table
 
-# 4. Query each table in Athena
+# 5. Query each table in Athena
 aws athena start-query-execution \
   --query-string "SELECT COUNT(*) FROM gwclaimcenter.claims" \
   --work-group insurancelake --region us-east-1
+```
+
+### Surge Test
+
+Simulate a CAT event burst by uploading many files rapidly:
+
+```bash
+# Upload 100 test events in parallel
+for i in $(seq 1 100); do
+  aws s3 cp test-event.json \
+    "s3://gw-appevents-{account}-collect/cc:$i/cc:$i-ClaimCreated-20260409T120000Z-$i.json" \
+    --region us-east-1 &
+done
+wait
+
+# Monitor Lambda concurrency (should see multiple invocations)
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Lambda --metric-name ConcurrentExecutions \
+  --dimensions Name=FunctionName,Value=dev-insurancelake-gw-appevents-batching \
+  --start-time $(date -u -v-10M '+%Y-%m-%dT%H:%M:%SZ') \
+  --end-time $(date -u '+%Y-%m-%dT%H:%M:%SZ') \
+  --period 60 --statistics Maximum --region us-east-1
 ```
 
 ### Query Examples
@@ -530,14 +559,25 @@ Nested JSON collections in the Claims cleanse table are queryable via 5 Athena v
 
 ### Batching Lambda
 
-The batching Lambda (`lib/guidewire_appevents_batching/lambda_handler.py`) runs every 15 minutes and:
+The batching Lambda (`lib/guidewire_appevents_batching/lambda_handler.py`) is triggered by SQS event source mapping and auto-scales with queue depth:
 
-1. **Drains SQS**: Receives up to 10 messages per API call, loops until queue is empty
+1. **Receives SQS batch**: AWS delivers up to 100 messages per invocation (configurable `batch_size`). Up to 10 Lambda instances run concurrently (`max_concurrency`). A 30-second batching window collects messages before invoking.
 2. **Classifies events**: Parses event type from S3 key using regex pattern `cc:\d+-(\w+)-\d{8}T\d{6}Z-\d+\.json` and routes to the correct table
 3. **Reads JSON files**: Fetches each event JSON from the Guidewire S3 bucket
 4. **Stringifies nested collections**: Converts nested objects to JSON strings using table-specific field lists to prevent Spark struct inference issues
 5. **Writes separate JSONL files**: One `batch-{timestamp}.jsonl` per event group (Claims, Exposures, Payments) — skips groups with 0 events
-6. **Deletes processed messages**: Only deletes SQS messages for successfully processed events; failed messages remain for retry (max 3 attempts before DLQ)
+6. **Reports partial failures**: Returns `batchItemFailures` for messages that couldn't be processed. AWS automatically retries failed messages; successfully processed messages are deleted by AWS (no manual deletion needed)
+
+**Throughput capacity:**
+
+| Metric | Value |
+|--------|-------|
+| Messages per invocation | Up to 100 |
+| Concurrent Lambda instances | Up to 10 |
+| Batching window | 30 seconds |
+| Lambda timeout | 15 minutes |
+| Lambda memory | 512 MB |
+| **Theoretical max throughput** | **~100K events/hour** |
 
 ### Event Type Classification
 
@@ -579,12 +619,18 @@ Each table has its own stringify field list since the nested structures differ:
 
 | Resource | Name Pattern | Purpose |
 |----------|-------------|---------|
-| SQS Queue | `{env}-insurancelake-gw-appevents-queue` | Buffers S3 event notifications |
-| SQS DLQ | `{env}-insurancelake-gw-appevents-dlq` | Failed message isolation (14-day retention) |
-| Lambda | `{env}-insurancelake-gw-appevents-batching` | Classifies events and writes JSONL per type |
-| EventBridge Rule | `{env}-insurancelake-gw-appevents-schedule` | Triggers Lambda every 15 minutes |
+| SQS Queue | `{env}-insurancelake-gw-appevents-queue` | Buffers S3 event notifications (960s visibility timeout) |
+| SQS DLQ | `{env}-insurancelake-gw-appevents-dlq` | Failed message isolation (14-day retention, 3 retries) |
+| Lambda | `{env}-insurancelake-gw-appevents-batching` | Classifies events and writes JSONL per type (512 MB, 15 min timeout) |
+| SQS Event Source Mapping | (managed by CDK) | Triggers Lambda from SQS (batch_size=100, max_concurrency=10) |
 | IAM Role | `{env}-insurancelake-{region}-gw-appevents-batching-lambda` | Least-privilege Lambda execution role |
 | CloudWatch Log Group | `/aws/lambda/{env}-insurancelake-gw-appevents-batching` | Lambda execution logs |
+
+### Bulk Migration Glue Job
+
+| Resource | Name Pattern | Purpose |
+|----------|-------------|---------|
+| Glue Job | `{env}-insurancelake-gw-bulk-migration-job` | One-time migration of 1M+ events from GW S3 bucket |
 
 ### InsuranceLake Data Catalog
 
@@ -654,6 +700,90 @@ The InsuranceLake Step Functions state machine publishes to an SNS topic on pipe
 | Consume table has duplicate rows | Dedup key mismatch or missing `ROW_NUMBER()` in consume SQL | Verify the `PARTITION BY` key matches the entity's unique identifier |
 | Schema change error on Payments | PaymentCreated/Changed have different fields | Set `"allow_schema_change": "permissive"` in Payments transform spec |
 | Cleanse partition grows indefinitely | Expected behavior with `partition_append` | Implement periodic compaction or lifecycle rules on old partitions |
+| Lambda not triggering from SQS | Event source mapping misconfigured | Check `aws lambda list-event-source-mappings --function-name <name>` |
+| Lambda processing too slow during surge | Batch size or concurrency too low | Increase `batch_size` (max 10000) or `max_concurrency` (max 1000) in CDK stack |
+| Bulk migration job fails OOM | Too many files for 50 workers | Increase `number_of_workers` or filter `--source_path` to a subset of files |
+| Duplicate events after bulk migration | Migration and Lambda processed same events | Disable SQS event source mapping before migration, re-enable after |
+
+## Surge Handling and Bulk Migration
+
+### Surge Scenarios
+
+The SQS-triggered Lambda architecture handles common insurance surge scenarios:
+
+| Scenario | Volume | How It's Handled |
+|----------|--------|-----------------|
+| **Normal operations** | 100-500 events/day | 1-2 Lambda instances, 30s batching window collects events naturally |
+| **CAT event** | 10,000+ events/hour | Lambda auto-scales to 10 concurrent instances, each processing 100 events. SQS buffers overflow. ~100K events/hour capacity. |
+| **Policy renewals** | 5,000-50,000 events in bursts | Same auto-scaling. Burst absorbed by SQS queue, Lambda drains it within minutes. |
+| **Guidewire migration (1M+)** | 1,000,000+ events | Use the dedicated bulk migration Glue job (see below). Do NOT send through SQS/Lambda. |
+
+### Bulk Migration Glue Job
+
+For one-time migrations from Guidewire on-premises to Guidewire Cloud, where 1M+ historical claim events need to be loaded into InsuranceLake, a dedicated Glue job bypasses the Lambda pipeline entirely:
+
+```
+Guidewire S3 Bucket (1M+ JSON files)
+  │
+  │  spark.read.json('s3://gw-bucket/**/*.json')
+  │  Spark natively parallelizes across all files
+  ▼
+┌─────────────────────────────────────────┐
+│  Bulk Migration Glue Job                │
+│  etl_guidewire_bulk_migration.py        │
+│  50 workers (G.1X), auto-scaling        │
+│                                         │
+│  1. Reads ALL files in parallel         │
+│  2. Classifies by event type            │
+│  3. Stringifies nested collections      │
+│  4. Writes JSONL per table              │
+└──────┬───────────┬──────────┬───────────┘
+       │           │          │
+       ▼           ▼          ▼
+  Claims/      Exposures/   Payments/
+  migration-   migration-   migration-
+  *.jsonl      *.jsonl      *.jsonl
+       │           │          │
+       ▼           ▼          ▼
+  InsuranceLake Collect Bucket
+  (triggers standard ETL pipeline)
+```
+
+**How to run:**
+
+```bash
+# Trigger the migration job (replace bucket name with your GW bucket)
+aws glue start-job-run \
+  --job-name dev-insurancelake-gw-bulk-migration-job \
+  --arguments '{
+    "--source_path": "s3://gw-appevents-038462774895-collect/",
+    "--target_bucket": "s3://dev-insurancelake-038462774895-us-east-1-collect",
+    "--source_system": "GWClaimCenter"
+  }' \
+  --region us-east-1
+
+# Monitor progress
+aws glue get-job-run \
+  --job-name dev-insurancelake-gw-bulk-migration-job \
+  --run-id <run-id-from-above> \
+  --region us-east-1 \
+  --query 'JobRun.{Status:JobRunState,Duration:ExecutionTime}'
+```
+
+**Performance estimates:**
+
+| Events | Workers | Estimated Duration | Estimated Cost |
+|--------|---------|-------------------|----------------|
+| 100K | 25 | ~10-15 min | ~$4 |
+| 500K | 50 | ~20-30 min | ~$15 |
+| 1M | 50 | ~30-60 min | ~$25 |
+| 5M | 50 | ~2-3 hours | ~$100 |
+
+**Important notes:**
+- Run the migration job **before** enabling the SQS-triggered Lambda to avoid duplicate processing
+- The migration writes JSONL to the collect bucket, which triggers the standard InsuranceLake pipeline for each file
+- For 1M+ events, the resulting JSONL files will trigger multiple pipeline runs — ensure Glue concurrent run limits are sufficient
+- The job uses `coalesce(1)` to write one JSONL file per table — for very large migrations, remove this to allow Spark to write multiple output files
 
 ## Cost Estimate
 
@@ -795,12 +925,33 @@ To enrich data with lookup values (e.g., LOB code → LOB name):
    ```
 3. Use the `resources/load_dynamodb_lookup_table.py` script to populate lookup tables
 
-### Adjusting Batch Interval
+### Tuning SQS Trigger Behavior
 
-The EventBridge schedule is configured in `lib/guidewire_appevents_stack.py`:
+The SQS event source mapping is configured in `lib/guidewire_appevents_stack.py`:
 
 ```python
-schedule=events.Schedule.rate(cdk.Duration.minutes(15))
+lambda_event_sources.SqsEventSource(
+    queue,
+    batch_size=100,              # Messages per Lambda invocation (1-10000)
+    max_batching_window=cdk.Duration.seconds(30),  # Wait up to 30s to fill batch
+    max_concurrency=10,          # Max parallel Lambda instances (1-1000)
+    report_batch_item_failures=True,
+)
 ```
 
-Change `15` to your desired interval and redeploy.
+| Parameter | Default | Effect of Increasing |
+|-----------|---------|---------------------|
+| `batch_size` | 100 | More events per JSONL file, fewer Glue pipeline runs, higher Lambda memory usage |
+| `max_batching_window` | 30s | Larger batches but higher latency before processing starts |
+| `max_concurrency` | 10 | More parallel processing during surges, but more concurrent Glue runs |
+
+### Running the Bulk Migration Job
+
+See [Surge Handling and Bulk Migration](#surge-handling-and-bulk-migration) for full instructions. Quick reference:
+
+```bash
+aws glue start-job-run \
+  --job-name dev-insurancelake-gw-bulk-migration-job \
+  --arguments '{"--source_path":"s3://your-gw-bucket/"}' \
+  --region us-east-1
+```
