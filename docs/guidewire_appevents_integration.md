@@ -85,11 +85,44 @@ cdk deploy --all
 git clone https://github.com/jay17june/aws-insurancelake-etl
 cd aws-insurancelake-etl
 git checkout feature/guidewire-appevents-integration
-# Configure Guidewire bucket name in lib/configuration.py
-cdk deploy --all --app "python3 deploy_direct.py"
+
+# Deploy with your configuration (no code changes needed)
+cdk deploy --app "python3 app.py" \
+  --context env=prod \
+  --context guidewire-bucket=your-gw-appevents-bucket \
+  --context region=us-east-1
 ```
 
-**Step 3: Verify Data Flow**
+**Step 3: (Optional) Customize Configuration**
+
+Fine-tune the integration for your specific requirements:
+
+```bash
+# Available configuration parameters:
+cdk deploy --app "python3 app.py" \
+  --context env=prod \                          # Environment: Dev, Test, or Prod
+  --context guidewire-bucket=your-bucket \      # Your Guidewire AppEvents S3 bucket
+  --context region=us-east-1 \                  # AWS region
+  --context lambda-memory=1024 \                # Lambda memory: 128-10240 MB
+  --context lambda-timeout=10 \                 # Lambda timeout: 1-15 minutes
+  --context lambda-batch-size=200 \             # SQS messages per Lambda: 1-10000
+  --context lambda-concurrency=20 \             # Max parallel Lambdas: 1-1000
+  --context glue-workers-standard=40 \          # Standard Glue job workers: 2-250
+  --context glue-workers-bulk=100               # Bulk migration workers: 2-250
+```
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `env` | Dev | Target environment (Dev, Test, Prod) |
+| `guidewire-bucket` | auto-generated | S3 bucket where Guidewire writes AppEvents |
+| `region` | us-east-2 | AWS region for all resources |
+| `lambda-memory` | 512 | Lambda memory in MB (higher = faster processing) |
+| `lambda-batch-size` | 100 | SQS messages per Lambda invocation |
+| `lambda-concurrency` | 10 | Max parallel Lambda instances during surges |
+| `glue-workers-standard` | 25 | Workers for regular ETL processing |
+| `glue-workers-bulk` | 50 | Workers for 1M+ event bulk migrations |
+
+**Step 4: Verify Data Flow**
 ```bash
 # Check that events are flowing
 aws athena start-query-execution \

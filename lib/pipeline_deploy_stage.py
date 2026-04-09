@@ -11,7 +11,9 @@ from .athena_workgroup_stack import AthenaWorkgroupStack
 from .guidewire_appevents_stack import GuidewireAppEventsStack
 from .tagging import tag
 from .configuration import (
-    GUIDEWIRE_APPEVENTS_BUCKET,
+    GUIDEWIRE_APPEVENTS_BUCKET, LAMBDA_MEMORY, LAMBDA_TIMEOUT, LAMBDA_BATCH_SIZE,
+    LAMBDA_CONCURRENCY, LAMBDA_BATCHING_WINDOW, SQS_VISIBILITY_TIMEOUT, SQS_RETENTION_DAYS,
+    DLQ_RETENTION_DAYS, GLUE_WORKERS_STANDARD, GLUE_WORKERS_BULK,
     get_logical_id_prefix, get_local_configuration,
 )
 
@@ -19,6 +21,7 @@ class PipelineDeployStage(cdk.Stage):
     def __init__(
         self, scope: Construct, construct_id: str,
         target_environment: str, env: cdk.Environment=None,
+        context_config: dict = None,
         **kwargs
     ):
         """Adds deploy stage to CodePipeline
@@ -68,6 +71,12 @@ class PipelineDeployStage(cdk.Stage):
             **kwargs,
         )
 
+        # Use context-based configuration (fallback to local_config for backwards compatibility)
+        if context_config:
+            config = context_config
+        else:
+            config = get_local_configuration(target_environment)
+
         glue_jobs_stack = GlueJobsStack(
             self,
             f'{logical_id_prefix}EtlGlueJobs',
@@ -82,6 +91,10 @@ class PipelineDeployStage(cdk.Stage):
             glue_scripts_bucket=glue_buckets_stack.glue_scripts_bucket,
             glue_scripts_temp_bucket=glue_buckets_stack.glue_scripts_temp_bucket,
             athena_workgroup=athena_workgroup_stack.athena_workgroup,
+            glue_config={
+                'workers_standard': config.get(GLUE_WORKERS_STANDARD, 25),
+                'workers_bulk': config.get(GLUE_WORKERS_BULK, 50),
+            },
             **kwargs,
         )
 
@@ -109,14 +122,25 @@ class PipelineDeployStage(cdk.Stage):
             **kwargs,
         )
 
-        local_config = get_local_configuration(target_environment)
         guidewire_appevents_stack = GuidewireAppEventsStack(
             self,
             f'{logical_id_prefix}EtlGuidewireAppEvents',
             description='InsuranceLake stack for Guidewire AppEvents batching pipeline (SO9489) (uksb-1tu7mtee2)',
             target_environment=target_environment,
             env=env,
-            guidewire_bucket_name=local_config[GUIDEWIRE_APPEVENTS_BUCKET],
+            guidewire_bucket_name=config[GUIDEWIRE_APPEVENTS_BUCKET],
+            lambda_config={
+                'memory': config.get(LAMBDA_MEMORY, 512),
+                'timeout': config.get(LAMBDA_TIMEOUT, 15),
+                'batch_size': config.get(LAMBDA_BATCH_SIZE, 100),
+                'max_concurrency': config.get(LAMBDA_CONCURRENCY, 10),
+                'batching_window': config.get(LAMBDA_BATCHING_WINDOW, 30),
+            },
+            sqs_config={
+                'visibility_timeout': config.get(SQS_VISIBILITY_TIMEOUT, 960),
+                'retention_days': config.get(SQS_RETENTION_DAYS, 4),
+                'dlq_retention_days': config.get(DLQ_RETENTION_DAYS, 14),
+            },
             **kwargs,
         )
 

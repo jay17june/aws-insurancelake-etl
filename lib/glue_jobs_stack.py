@@ -32,6 +32,7 @@ class GlueJobsStack(cdk.Stack):
         glue_scripts_temp_bucket: s3.Bucket,
         athena_workgroup: athena.CfnWorkGroup,
         data_lineage_table: dynamodb.Table = None,
+        glue_config: dict = None,
         **kwargs
     ):
         """CloudFormation stack to create Glue Jobs, Connections, and an IAM role for permissions.
@@ -66,6 +67,9 @@ class GlueJobsStack(cdk.Stack):
             Optional keyword arguments to pass up to parent Stack class
         """
         super().__init__(scope, construct_id, **kwargs)
+
+        # Set configuration defaults
+        glue_config = glue_config or {}
 
         self.target_environment = target_environment
         self.mappings = get_environment_configuration(target_environment)
@@ -190,7 +194,7 @@ class GlueJobsStack(cdk.Stack):
             max_retries=0,
             # With auto-scaling, this represents the maximum number of workers
             # If using a Connection, there must be enough IP addresses for each worker
-            number_of_workers=25,
+            number_of_workers=glue_config.get('workers_standard', 25),
             role=self.glue_role.role_arn,
             worker_type='G.1X',
             # TODO: Allow the user to specify a user-managed, out-of-stack security group name
@@ -231,7 +235,7 @@ class GlueJobsStack(cdk.Stack):
             max_retries=0,
             # With auto-scaling, this represents the maximum number of workers
             # If using a Connection, there must be enough IP addresses for each worker
-            number_of_workers=25,
+            number_of_workers=glue_config.get('workers_standard', 25),
             role=self.glue_role.role_arn,
             worker_type='G.1X',
             # TODO: Allow the user to specify a user-managed, out-of-stack security group name
@@ -272,7 +276,7 @@ class GlueJobsStack(cdk.Stack):
             max_retries=0,
             # With auto-scaling, this represents the maximum number of workers
             # If using a Connection, there must be enough IP addresses for each worker
-            number_of_workers=25,
+            number_of_workers=glue_config.get('workers_standard', 25),
             role=self.glue_role.role_arn,
             worker_type='G.1X',
         )
@@ -303,7 +307,7 @@ class GlueJobsStack(cdk.Stack):
             ),
             glue_version='5.1',
             max_retries=0,
-            number_of_workers=50,
+            number_of_workers=glue_config.get('workers_bulk', 50),
             role=self.glue_role.role_arn,
             worker_type='G.1X',
         )

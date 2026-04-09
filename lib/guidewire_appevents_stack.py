@@ -26,6 +26,8 @@ class GuidewireAppEventsStack(cdk.Stack):
         construct_id: str,
         target_environment: str,
         guidewire_bucket_name: str,
+        lambda_config: dict = None,
+        sqs_config: dict = None,
         **kwargs,
     ):
         """CloudFormation stack to create Guidewire AppEvents batching pipeline
@@ -45,6 +47,10 @@ class GuidewireAppEventsStack(cdk.Stack):
             Optional keyword arguments to pass up to parent Stack class
         """
         super().__init__(scope, construct_id, **kwargs)
+
+        # Set configuration defaults
+        lambda_config = lambda_config or {}
+        sqs_config = sqs_config or {}
 
         self.target_environment = target_environment
         self.mappings = get_environment_configuration(target_environment)
@@ -66,7 +72,7 @@ class GuidewireAppEventsStack(cdk.Stack):
             self,
             f'{target_environment}{self.logical_id_prefix}GwAppEventsDLQ',
             queue_name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-appevents-dlq',
-            retention_period=cdk.Duration.days(14),
+            retention_period=cdk.Duration.days(sqs_config.get('dlq_retention_days', 14)),
             encryption=sqs.QueueEncryption.SQS_MANAGED,
             enforce_ssl=True,
             removal_policy=self.removal_policy,
@@ -78,8 +84,8 @@ class GuidewireAppEventsStack(cdk.Stack):
             self,
             f'{target_environment}{self.logical_id_prefix}GwAppEventsQueue',
             queue_name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-appevents-queue',
-            visibility_timeout=cdk.Duration.seconds(960),
-            retention_period=cdk.Duration.days(4),
+            visibility_timeout=cdk.Duration.seconds(sqs_config.get('visibility_timeout', 960)),
+            retention_period=cdk.Duration.days(sqs_config.get('retention_days', 4)),
             encryption=sqs.QueueEncryption.SQS_MANAGED,
             enforce_ssl=True,
             dead_letter_queue=sqs.DeadLetterQueue(
@@ -128,12 +134,12 @@ class GuidewireAppEventsStack(cdk.Stack):
                 f'{os.path.dirname(__file__)}/guidewire_appevents_batching'
             ),
             architecture=_lambda.Architecture.ARM_64,
-            memory_size=512,
+            memory_size=lambda_config.get('memory', 512),
             environment={
                 'COLLECT_BUCKET_NAME': self.buckets.raw.bucket_name,
                 'SOURCE_SYSTEM': 'GWClaimCenter',
             },
-            timeout=cdk.Duration.minutes(15),
+            timeout=cdk.Duration.minutes(lambda_config.get('timeout', 15)),
             log_group=cloudwatch_log_group,
             role=lambda_role,
         )
@@ -143,9 +149,9 @@ class GuidewireAppEventsStack(cdk.Stack):
         lambda_function.add_event_source(
             lambda_event_sources.SqsEventSource(
                 queue,
-                batch_size=100,
-                max_batching_window=cdk.Duration.seconds(30),
-                max_concurrency=10,
+                batch_size=lambda_config.get('batch_size', 100),
+                max_batching_window=cdk.Duration.seconds(lambda_config.get('batching_window', 30)),
+                max_concurrency=lambda_config.get('max_concurrency', 10),
                 report_batch_item_failures=True,
             )
         )

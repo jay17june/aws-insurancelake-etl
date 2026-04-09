@@ -1,4 +1,19 @@
 {
   "app": "python3 app.py",
-  "context": {}
+  "context": {
+    "_comment": "Guidewire AppEvents Integration Configuration - Override with --context key=value",
+    "env": "Dev",
+    "region": "us-east-2",
+    "guidewire-bucket": "",
+    "lambda-memory": 512,
+    "lambda-timeout": 15,
+    "lambda-batch-size": 100,
+    "lambda-concurrency": 10,
+    "lambda-batching-window": 30,
+    "sqs-visibility-timeout": 960,
+    "sqs-retention-days": 4,
+    "dlq-retention-days": 14,
+    "glue-workers-standard": 25,
+    "glue-workers-bulk": 50
+  }
 }
