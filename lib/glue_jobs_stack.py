@@ -277,6 +277,37 @@ class GlueJobsStack(cdk.Stack):
             worker_type='G.1X',
         )
 
+        # Guidewire AppEvents bulk migration job (one-time use, manually triggered)
+        self.bulk_migration_job = glue.CfnJob(
+            self,
+            f'{target_environment}{self.logical_id_prefix}GwBulkMigrationJob',
+            name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-bulk-migration-job',
+            description='One-time Guidewire AppEvents bulk migration - reads all events from GW S3 and writes JSONL to InsuranceLake',
+            command=glue.CfnJob.JobCommandProperty(
+                name='glueetl',
+                python_version='3',
+                script_location=f's3://{self.glue_scripts_bucket.bucket_name}/etl/etl_guidewire_bulk_migration.py'
+            ),
+            connections=glue.CfnJob.ConnectionsListProperty(
+                connections=[ job_connection.connection_input.name for job_connection in job_connections ],
+            ) if job_connections else None,
+            default_arguments=common_default_arguments | {
+                '--TempDir': f's3://{self.glue_scripts_temp_bucket.bucket_name}/etl/gw_bulk_migration/',
+                '--spark-event-logs-path': f's3://{self.glue_scripts_temp_bucket.bucket_name}/spark-ui/gw_bulk_migration/',
+                '--source_path': 's3://REPLACE_WITH_GW_BUCKET/',
+                '--target_bucket': f's3://{self.buckets.raw.bucket_name}',
+                '--source_system': 'GWClaimCenter',
+            },
+            execution_property=glue.CfnJob.ExecutionPropertyProperty(
+                max_concurrent_runs=1,
+            ),
+            glue_version='5.1',
+            max_retries=0,
+            number_of_workers=50,
+            role=self.glue_role.role_arn,
+            worker_type='G.1X',
+        )
+
         # Recommended encryption settings for account Glue Data Catalog
         # Applies to all databases and tables in the account; uncomment to apply
         # glue.CfnDataCatalogEncryptionSettings(

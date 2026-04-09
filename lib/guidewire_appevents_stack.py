@@ -5,12 +5,11 @@ import aws_cdk as cdk
 from constructs import Construct
 import aws_cdk.aws_iam as iam
 import aws_cdk.aws_lambda as _lambda
+import aws_cdk.aws_lambda_event_sources as lambda_event_sources
 import aws_cdk.aws_logs as logs
 import aws_cdk.aws_s3 as s3
 import aws_cdk.aws_s3_notifications as s3_notifications
 import aws_cdk.aws_sqs as sqs
-import aws_cdk.aws_events as events
-import aws_cdk.aws_events_targets as events_targets
 from cdk_nag import NagSuppressions
 
 from .stack_import_helper import ImportedBuckets
@@ -74,11 +73,12 @@ class GuidewireAppEventsStack(cdk.Stack):
         )
 
         # SQS Main Queue to buffer S3 event notifications from Guidewire bucket
+        # Visibility timeout must be >= Lambda timeout for SQS event source mapping
         queue = sqs.Queue(
             self,
             f'{target_environment}{self.logical_id_prefix}GwAppEventsQueue',
             queue_name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-appevents-queue',
-            visibility_timeout=cdk.Duration.seconds(300),
+            visibility_timeout=cdk.Duration.seconds(960),
             retention_period=cdk.Duration.days(4),
             encryption=sqs.QueueEncryption.SQS_MANAGED,
             enforce_ssl=True,
@@ -128,24 +128,27 @@ class GuidewireAppEventsStack(cdk.Stack):
                 f'{os.path.dirname(__file__)}/guidewire_appevents_batching'
             ),
             architecture=_lambda.Architecture.ARM_64,
+            memory_size=512,
             environment={
-                'SQS_QUEUE_URL': queue.queue_url,
                 'COLLECT_BUCKET_NAME': self.buckets.raw.bucket_name,
                 'SOURCE_SYSTEM': 'GWClaimCenter',
             },
-            timeout=cdk.Duration.minutes(5),
+            timeout=cdk.Duration.minutes(15),
             log_group=cloudwatch_log_group,
             role=lambda_role,
         )
 
-        # EventBridge scheduled rule to trigger batching every 15 minutes
-        rule = events.Rule(
-            self,
-            f'{target_environment}{self.logical_id_prefix}GwAppEventsScheduleRule',
-            rule_name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-appevents-schedule',
-            schedule=events.Schedule.rate(cdk.Duration.minutes(15)),
+        # SQS event source mapping - auto-scales Lambda with queue depth
+        # Replaces EventBridge schedule for real-time, surge-resilient processing
+        lambda_function.add_event_source(
+            lambda_event_sources.SqsEventSource(
+                queue,
+                batch_size=100,
+                max_batching_window=cdk.Duration.seconds(30),
+                max_concurrency=10,
+                report_batch_item_failures=True,
+            )
         )
-        rule.add_target(events_targets.LambdaFunction(lambda_function))
 
         NagSuppressions.add_resource_suppressions(self, [
             {
@@ -201,6 +204,7 @@ class GuidewireAppEventsStack(cdk.Stack):
                         'sqs:ReceiveMessage',
                         'sqs:DeleteMessage',
                         'sqs:GetQueueAttributes',
+                        'sqs:ChangeMessageVisibility',
                     ],
                     resources=[queue.queue_arn],
                 )

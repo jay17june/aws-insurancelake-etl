@@ -53,105 +53,82 @@ def classify_event(source_key):
 
 
 def lambda_handler(event: dict, _) -> dict:
-    """Lambda function's entry point. Triggered by EventBridge schedule to batch
-    Guidewire AppEvents from SQS into consolidated JSONL files for InsuranceLake.
+    """Lambda function's entry point. Triggered by SQS event source mapping
+    to batch Guidewire AppEvents into consolidated JSONL files for InsuranceLake.
 
-    Drains the SQS queue of S3 event notifications, reads the corresponding JSON
-    files from the Guidewire S3 bucket, classifies events by type, and writes
-    separate JSONL batch files per event group (Claims, Exposures, Payments).
+    Receives a batch of SQS messages (up to 100) containing S3 event
+    notifications, classifies events by type, and writes separate JSONL
+    batch files per event group (Claims, Exposures, Payments).
 
     Parameters
     ----------
     event
-        EventBridge scheduled event (contents not used)
+        SQS batch event containing Records array
 
     Returns
     -------
     dict
-        Lambda result dictionary
+        Batch item failures for partial failure reporting
     """
     s3_client = boto3.client('s3')
-    sqs_client = boto3.client('sqs')
 
-    queue_url = os.environ['SQS_QUEUE_URL']
     collect_bucket = os.environ['COLLECT_BUCKET_NAME']
     source_system = os.environ.get('SOURCE_SYSTEM', 'GWClaimCenter')
 
     # Separate event buckets per table
     events_by_table = {table: [] for table in set(EVENT_TYPE_ROUTING.values())}
-    receipts_to_delete = []
-    failed_count = 0
+    failed_message_ids = []
 
-    # Drain the SQS queue by receiving up to 10 messages per call
-    while True:
+    # Process each SQS record in the batch (AWS sends up to batch_size messages)
+    for record in event.get('Records', []):
+        message_id = record.get('messageId', 'unknown')
+
         try:
-            response = sqs_client.receive_message(
-                QueueUrl=queue_url,
-                MaxNumberOfMessages=10,
-                WaitTimeSeconds=1,
-            )
-        except botocore.exceptions.ClientError as error:
-            raise RuntimeError(f'SQS receive_message failed: {error}')
+            body = json.loads(record['body'])
+            s3_records = body.get('Records', [])
 
-        messages = response.get('Messages', [])
-        if not messages:
-            break
+            for s3_record in s3_records:
+                source_bucket = s3_record['s3']['bucket']['name']
+                source_key = unquote_plus(s3_record['s3']['object']['key'])
 
-        for message in messages:
-            receipt_handle = message['ReceiptHandle']
-            message_id = message.get('MessageId', 'unknown')
+                # Skip folder creation events
+                if source_key.endswith('/'):
+                    logger.info(f'Skipping folder creation event: {source_key}')
+                    continue
 
-            try:
-                body = json.loads(message['Body'])
-                records = body.get('Records', [])
+                # Classify event type from S3 key
+                table_name = classify_event(source_key)
+                if not table_name:
+                    logger.warning(f'Unknown event type in key: {source_key}, skipping')
+                    continue
 
-                for record in records:
-                    source_bucket = record['s3']['bucket']['name']
-                    source_key = unquote_plus(record['s3']['object']['key'])
+                logger.debug(f'Reading s3://{source_bucket}/{source_key} -> {table_name}')
+                obj_response = s3_client.get_object(
+                    Bucket=source_bucket,
+                    Key=source_key,
+                )
+                content = obj_response['Body'].read().decode('utf-8').strip()
 
-                    # Skip folder creation events
-                    if source_key.endswith('/'):
-                        logger.info(f'Skipping folder creation event: {source_key}')
-                        continue
+                # Parse JSON and stringify nested collections to prevent
+                # Spark from inferring structs with dynamic colon-containing
+                # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
+                event_data = json.loads(content)
+                for field in STRINGIFY_FIELDS.get(table_name, []):
+                    if field in event_data and not isinstance(event_data[field], str):
+                        event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
 
-                    # Classify event type from S3 key
-                    table_name = classify_event(source_key)
-                    if not table_name:
-                        logger.warning(f'Unknown event type in key: {source_key}, skipping')
-                        continue
+                single_line = json.dumps(event_data, separators=(',', ':'))
+                events_by_table[table_name].append(single_line)
 
-                    logger.debug(f'Reading s3://{source_bucket}/{source_key} -> {table_name}')
-                    obj_response = s3_client.get_object(
-                        Bucket=source_bucket,
-                        Key=source_key,
-                    )
-                    content = obj_response['Body'].read().decode('utf-8').strip()
-
-                    # Parse JSON and stringify nested collections to prevent
-                    # Spark from inferring structs with dynamic colon-containing
-                    # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
-                    event_data = json.loads(content)
-                    for field in STRINGIFY_FIELDS.get(table_name, []):
-                        if field in event_data and not isinstance(event_data[field], str):
-                            event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
-
-                    single_line = json.dumps(event_data, separators=(',', ':'))
-                    events_by_table[table_name].append(single_line)
-
-                receipts_to_delete.append(receipt_handle)
-
-            except Exception:
-                logger.exception(f'Failed to process SQS message {message_id}')
-                failed_count += 1
+        except Exception:
+            logger.exception(f'Failed to process SQS message {message_id}')
+            failed_message_ids.append(message_id)
 
     # Check if any events were collected
     total_events = sum(len(v) for v in events_by_table.values())
     if total_events == 0:
-        logger.info('No messages in queue; no-op')
-        return {
-            'statusCode': 200,
-            'body': json.dumps('No messages to process'),
-        }
+        logger.info('No processable events in batch')
+        return {'batchItemFailures': [{'itemIdentifier': mid} for mid in failed_message_ids]}
 
     # Write separate JSONL per event group to InsuranceLake collect bucket
     timestamp = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
@@ -171,24 +148,19 @@ def lambda_handler(event: dict, _) -> dict:
                 Body=jsonl_body.encode('utf-8'),
             )
         except botocore.exceptions.ClientError as error:
-            raise RuntimeError(f'Failed to write batch to s3://{collect_bucket}/{output_key}: {error}')
+            logger.error(f'Failed to write batch to s3://{collect_bucket}/{output_key}: {error}')
+            # All messages in this invocation should retry
+            return {'batchItemFailures': [{'itemIdentifier': r['messageId']} for r in event.get('Records', [])]}
 
         logger.info(f'Wrote {len(events)} events to s3://{collect_bucket}/{output_key}')
         output_files.append(f'{table_name}:{len(events)}')
 
-    # Delete only successfully processed messages from SQS
-    for receipt in receipts_to_delete:
-        try:
-            sqs_client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt)
-        except botocore.exceptions.ClientError as error:
-            logger.error(f'Failed to delete SQS message: {error}')
-
     return_message = f'Batched {total_events} events ({", ".join(output_files)})'
-    if failed_count > 0:
-        return_message += f', {failed_count} messages failed (will retry via SQS)'
+    if failed_message_ids:
+        return_message += f', {len(failed_message_ids)} messages failed'
     logger.info(return_message)
 
+    # Report partial failures — AWS will retry only these messages
     return {
-        'statusCode': 200,
-        'body': json.dumps(return_message),
+        'batchItemFailures': [{'itemIdentifier': mid} for mid in failed_message_ids]
     }
