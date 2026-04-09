@@ -657,9 +657,24 @@ The InsuranceLake Step Functions state machine publishes to an SNS topic on pipe
 
 ## Cost Estimate
 
+### Overall Cost Summary
+
+Estimated monthly cost for processing ~1,000 Guidewire AppEvents per day with 15-minute batching:
+
+| Category | Monthly Cost | % of Total | Rationale |
+|----------|-------------|-----------|-----------|
+| **AWS Glue Jobs** | **~$275** | **96%** | Dominant cost. Each 15-min batch triggers up to 3 pipelines (Claims, Exposures, Payments), each with 2 Glue jobs (collect-to-cleanse + cleanse-to-consume). ~190 job pairs/day at ~$0.03-0.04 per run. Auto-scaling keeps DPU usage minimal for small batches. |
+| **Infrastructure** | **~$5** | **2%** | Step Functions ($2.14), DynamoDB on-demand ($1.50), KMS key ($1). Fixed overhead for pipeline orchestration, job audit tracking, and encryption. |
+| **Compute** | **~$0.01** | **<1%** | Lambda batching function: 96 invocations/day at ~3s each, 128MB memory. Well within free tier. Essentially free at any AppEvents volume. |
+| **Messaging** | **~$0** | **0%** | SQS (30K messages/month) and EventBridge (96 events/day) are within free tier. SNS notifications are negligible. |
+| **Storage** | **~$0.20** | **<1%** | S3 across all 3 buckets (collect JSONL + cleanse Parquet + consume Parquet) plus Glue scripts and temp buckets. ~5 GB/month at $0.023/GB. Grows linearly with event volume. |
+| **Analytics** | **~$1-5** | **~1%** | Athena queries at $5/TB scanned. Small tables keep scan costs minimal. CloudWatch Logs at ~$0.50/GB for Lambda and Glue job logs. |
+| **Glue Data Catalog** | **$0** | **0%** | First 1M objects free. 3 cleanse tables + 3 consume tables + 5 Athena views = 11 objects. |
+| | **~$285/month** | **100%** | |
+
 ### Cost Breakdown by Service
 
-Costs are based on `us-east-1` pricing. The dominant cost is **AWS Glue** — all other services are negligible at typical AppEvents volumes.
+All services with per-unit pricing and usage calculation at ~1,000 events/day (`us-east-1` pricing):
 
 | Service | Resource | Unit Cost | Usage (1K events/day) | Monthly Cost |
 |---------|----------|-----------|----------------------|-------------|
@@ -668,12 +683,16 @@ Costs are based on `us-east-1` pricing. The dominant cost is **AWS Glue** — al
 | **Lambda** | Batching Lambda | $0.20/1M requests | 96 invocations/day x 3s | **~$0.01** |
 | **SQS** | Event queue + DLQ | $0.40/1M requests | ~30K messages/month | **Free** (free tier) |
 | **S3** | Collect + Cleanse + Consume | $0.023/GB/month | ~5 GB/month | **~$0.12** |
+| **S3** | Glue scripts + temp buckets | $0.023/GB/month | ~0.5 GB/month | **~$0.01** |
 | **Step Functions** | Pipeline orchestration | $0.025/1K transitions | ~190 executions/day x 5 states | **~$2.14** |
-| **DynamoDB** | Audit + DQ tables | On-demand | ~1K writes/day | **~$1.50** |
+| **DynamoDB** | Audit + DQ + lineage tables | On-demand | ~1K writes/day | **~$1.50** |
+| **KMS** | Encryption key | $1/key/month | 1 shared key | **~$1.00** |
 | **EventBridge** | Scheduled rule | $1/1M events | 96/day | **Free** |
+| **SNS** | Pipeline notifications | $0.50/1M publishes | ~190/day | **Free** |
 | **Athena** | Ad-hoc queries | $5/TB scanned | Varies by usage | **~$1-5** |
-| **CloudWatch** | Logs | $0.50/GB ingested | ~1 GB/month | **~$0.50** |
-| | | | **Estimated Total** | **~$280-285/month** |
+| **CloudWatch** | Lambda + Glue logs | $0.50/GB ingested | ~2 GB/month | **~$1.00** |
+| **Glue Data Catalog** | Tables + views | Free (first 1M) | 11 objects | **Free** |
+| | | | **Estimated Total** | **~$285/month** |
 
 ### How Glue Costs Work
 
