@@ -95,32 +95,44 @@ cdk deploy --app "python3 app.py" \
 
 **Step 3: (Optional) Customize Configuration**
 
-Fine-tune the integration for your specific requirements:
+Fine-tune the integration for your specific requirements using CDK context parameters:
 
 ```bash
-# Available configuration parameters:
+# Performance tuning for high-volume scenarios:
 cdk deploy --app "python3 app.py" \
-  --context env=prod \                          # Environment: Dev, Test, or Prod
-  --context guidewire-bucket=your-bucket \      # Your Guidewire AppEvents S3 bucket
-  --context region=us-east-1 \                  # AWS region
-  --context lambda-memory=1024 \                # Lambda memory: 128-10240 MB
-  --context lambda-timeout=10 \                 # Lambda timeout: 1-15 minutes
-  --context lambda-batch-size=200 \             # SQS messages per Lambda: 1-10000
-  --context lambda-concurrency=20 \             # Max parallel Lambdas: 1-1000
-  --context glue-workers-standard=40 \          # Standard Glue job workers: 2-250
-  --context glue-workers-bulk=100               # Bulk migration workers: 2-250
+  --context env=prod \
+  --context guidewire-bucket=prod-gw-appevents \
+  --context region=us-west-2 \
+  --context lambda-memory=2048 \
+  --context lambda-batch-size=500 \
+  --context lambda-concurrency=25 \
+  --context glue-workers-standard=50 \
+  --context glue-workers-bulk=100
+
+# Cost-optimized for development:
+cdk deploy --app "python3 app.py" \
+  --context env=dev \
+  --context lambda-memory=256 \
+  --context lambda-batch-size=50 \
+  --context glue-workers-standard=10
 ```
 
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `env` | Dev | Target environment (Dev, Test, Prod) |
-| `guidewire-bucket` | auto-generated | S3 bucket where Guidewire writes AppEvents |
-| `region` | us-east-2 | AWS region for all resources |
-| `lambda-memory` | 512 | Lambda memory in MB (higher = faster processing) |
-| `lambda-batch-size` | 100 | SQS messages per Lambda invocation |
-| `lambda-concurrency` | 10 | Max parallel Lambda instances during surges |
-| `glue-workers-standard` | 25 | Workers for regular ETL processing |
-| `glue-workers-bulk` | 50 | Workers for 1M+ event bulk migrations |
+### Configuration Parameters
+
+| Parameter | Default | Range | Purpose |
+|-----------|---------|-------|---------|
+| `env` | Dev | Dev/Test/Prod | Target environment |
+| `guidewire-bucket` | auto-generated | any | S3 bucket where Guidewire writes AppEvents |
+| `region` | us-east-2 | any AWS region | AWS region for all resources |
+| `lambda-memory` | 512 | 128-10240 MB | Lambda memory (higher = faster processing) |
+| `lambda-timeout` | 15 | 1-15 minutes | Lambda timeout for large batches |
+| `lambda-batch-size` | 100 | 1-10000 | SQS messages per Lambda invocation |
+| `lambda-concurrency` | 10 | 1-1000 | Max parallel Lambdas during surges |
+| `sqs-visibility-timeout` | 960 | ≥ Lambda timeout | SQS message visibility window |
+| `glue-workers-standard` | 25 | 2-250 | Workers for regular ETL processing |
+| `glue-workers-bulk` | 50 | 2-250 | Workers for 1M+ event bulk migrations |
+
+**Parameter validation** prevents invalid configurations (e.g., SQS timeout less than Lambda timeout).
 
 **Step 4: Verify Data Flow**
 ```bash
@@ -244,6 +256,46 @@ We recommend creating a Budget with Cost Explorer to track expenses. Estimated c
 1. Navigate to **AWS Cost Management** in your AWS Console
 2. Select **Budgets** and create a new budget
 3. Set threshold alerts at 80% and 100% of expected monthly spend
+
+## Configuration Quick Reference
+
+### Common Deployment Scenarios
+
+**Production Deployment (High Performance)**:
+```bash
+cdk deploy --app "python3 app.py" \
+  --context env=Prod \
+  --context guidewire-bucket=prod-gw-appevents-bucket \
+  --context region=us-east-1 \
+  --context lambda-memory=2048 \
+  --context lambda-concurrency=25 \
+  --context glue-workers-standard=50
+```
+
+**Development Environment (Cost Optimized)**:
+```bash
+cdk deploy --app "python3 app.py" \
+  --context env=Dev \
+  --context guidewire-bucket=dev-gw-appevents-bucket \
+  --context lambda-memory=256 \
+  --context glue-workers-standard=10
+```
+
+**CAT Event Preparation (Surge Ready)**:
+```bash
+cdk deploy --app "python3 app.py" \
+  --context env=Prod \
+  --context lambda-memory=1024 \
+  --context lambda-batch-size=500 \
+  --context lambda-concurrency=50
+```
+
+**Bulk Migration Setup (1M+ Events)**:
+```bash
+cdk deploy --app "python3 app.py" \
+  --context env=Prod \
+  --context glue-workers-bulk=100
+```
 
 ## Next Steps
 
