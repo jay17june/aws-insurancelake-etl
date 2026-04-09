@@ -163,6 +163,55 @@ The integration is designed to handle common insurance industry surge patterns:
 - **Performance**: Spark's native parallelism processes large datasets efficiently
 - **Duration**: 1M events migrated in 30-60 minutes
 
+## Cost
+
+### Quick Summary
+
+For processing typical Guidewire ClaimCenter AppEvents volume (1,000 events per day) in production, **your monthly AWS cost will be approximately $285**.
+
+This estimate assumes:
+- 1,000 mixed AppEvents per day (Claims, Exposures, Payments)
+- Standard AWS Glue auto-scaling configuration
+- Regular Athena queries for reporting and analytics
+- US East 1 (N. Virginia) region pricing as of January 2025
+
+*Note: Prices are subject to change. Please refer to the [AWS Pricing Calculator](https://calculator.aws/) for the most current information.*
+
+### Cost Breakdown
+
+| AWS Service | Purpose | Unit Cost | Estimated Monthly Cost |
+|-------------|---------|-----------|----------------------|
+| **AWS Glue** | ETL processing (Collect-Cleanse-Consume) | $0.44 per DPU-Hour | $275 |
+| **AWS Lambda** | Event batching and routing | $0.20 per 1M requests | $0.01 |
+| **Amazon S3** | Data lake storage (all layers) | $0.023 per GB | $0.20 |
+| **AWS Step Functions** | Pipeline orchestration | $0.025 per 1K state transitions | $2.14 |
+| **Amazon DynamoDB** | Job audit and data lineage | On-demand pricing | $1.50 |
+| **Amazon SQS** | Event buffering | $0.40 per 1M requests | $0 (Free Tier) |
+| **Amazon Athena** | Ad-hoc analytics queries | $5 per TB scanned | $1-5 |
+| **AWS KMS** | Data encryption | $1 per key per month | $1.00 |
+| **Amazon EventBridge** | Scheduling (if used) | $1 per 1M events | $0 (Free Tier) |
+| **Amazon CloudWatch** | Monitoring and logs | $0.50 per GB ingested | $1.00 |
+| | | **Total** | **~$285** |
+
+*Costs scale primarily with event volume. Higher volumes use more Glue DPU hours but benefit from economies of scale in batch processing.*
+
+### Cost Optimization
+
+**Adjust batch processing frequency** to balance cost with data freshness:
+- Every 15 minutes (current): $285/month, ~15-minute data latency
+- Every hour: $70/month, ~1-hour data latency
+- Daily batches: $9/month, ~24-hour data latency
+
+**Use AWS Free Tier** for development and testing environments. Many services (SQS, EventBridge, Lambda) include generous free tier allowances.
+
+**Monitor with AWS Cost Explorer**
+
+We recommend creating a Budget with Cost Explorer to track expenses. Estimated costs are shown as guidelines, and your actual costs will vary based on your usage patterns and AWS pricing changes.
+
+1. Navigate to **AWS Cost Management** in your AWS Console
+2. Select **Budgets** and create a new budget
+3. Set threshold alerts at 80% and 100% of expected monthly spend
+
 ## Next Steps
 
 ### Extend to Other Guidewire Products
