@@ -19,7 +19,7 @@ For developers looking to understand or extend the implementation, refer to the 
 
 ## Overview
 
-This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake, enabling automated ingestion, transformation, and analytics of claim event data. The solution handles six AppEvent types (ClaimCreated, ClaimChanged, ExposureAdded, ExposureChanged, PaymentCreated, PaymentChanged) and provides analytics-ready data tables for business intelligence, regulatory reporting, and operational insights.
+This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake with **breakthrough dynamic schema processing** that automatically adapts to any Guidewire payload structure without configuration changes. The solution handles six AppEvent types (ClaimCreated, ClaimChanged, ExposureAdded, ExposureChanged, PaymentCreated, PaymentChanged) and provides analytics-ready data tables with **complete field preservation** for business intelligence, regulatory reporting, and operational insights.
 
 **This integration helps you to:**
 - **Ingest Guidewire data automatically** — No manual ETL configuration, schema mapping, or data movement required
