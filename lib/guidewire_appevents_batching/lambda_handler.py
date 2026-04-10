@@ -131,6 +131,52 @@ def lambda_handler(event: dict, _) -> dict:
                     if field not in event_data:
                         event_data[field] = {'code': 'unknown', 'name': 'Unknown'}
 
+                # Ensure complex objects exist with expected sub-fields (schema mapping extracts these)
+                COMPLEX_OBJECT_DEFAULTS = {
+                    'policy': {
+                        'producerCode': 'unknown',
+                        'currency': {'code': 'USD', 'name': 'US Dollar'}
+                    },
+                    'lossLocation': {
+                        'addressLine1': 'Unknown',
+                        'city': 'Unknown',
+                        'state': {'code': 'UNK', 'name': 'Unknown'},
+                        'postalCode': '00000',
+                        'country': 'US'
+                    },
+                    'insured': {
+                        'displayName': 'Unknown Insured',
+                        'id': 'unknown'
+                    },
+                    'mainContact': {
+                        'displayName': 'Unknown Contact',
+                        'id': 'unknown'
+                    },
+                    'reporter': {
+                        'displayName': 'Unknown Reporter',
+                        'id': 'unknown'
+                    },
+                    'assignedUser': {
+                        'displayName': 'Unassigned',
+                        'id': 'unknown'
+                    },
+                    'assignedGroup': {
+                        'displayName': 'Unassigned',
+                        'id': 'unknown'
+                    },
+                    'assignedByUser': {
+                        'displayName': 'System',
+                        'id': 'system'
+                    }
+                }
+
+                for obj_name, defaults in COMPLEX_OBJECT_DEFAULTS.items():
+                    if obj_name not in event_data:
+                        event_data[obj_name] = {}
+                    for field, default_value in defaults.items():
+                        if field not in event_data[obj_name]:
+                            event_data[obj_name][field] = default_value
+
                 single_line = json.dumps(event_data, separators=(',', ':'))
                 events_by_table[table_name].append(single_line)
 

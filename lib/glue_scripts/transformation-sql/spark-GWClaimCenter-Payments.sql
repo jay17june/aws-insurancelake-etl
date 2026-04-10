@@ -14,17 +14,9 @@ SELECT
   , paymenttype
   , paymentstatus
   , currency
-  , createdvia
   , checknumber
   , createtime
   , issuedate
-  , exposure_name
-  , exposure_id
-  , reserve_id
-  , assigneduser_name
-  , assigneduser_id
-  , assignedgroup_name
-  , assignedgroup_id
   , validationlevel
   , sourcesystem
   , eventtype

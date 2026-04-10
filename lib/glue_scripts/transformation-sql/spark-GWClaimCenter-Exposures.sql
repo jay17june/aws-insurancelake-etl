@@ -16,17 +16,6 @@ SELECT
   , incidentonly
   , assignmentstatus
   , policynumber
-  , policy_policynumber
-  , policytype
-  , policyeffectivedate
-  , policyexpirationdate
-  , losslocation_address1
-  , losslocation_city
-  , losslocation_statecode
-  , losslocation_postalcode
-  , coverageinquestion
-  , assigneduser_id
-  , assignedgroup_id
   , sourcesystem
   , eventtype
   , execution_id
