@@ -20,7 +20,7 @@ SELECT
 FROM
     gwclaimcenter.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.activities) as map(varchar, json))) as t(activity_key, activity_value)
-WHERE c.activities IS NOT NULL AND c.activities != '{}'
+WHERE c.activities IS NOT NULL AND c.activities != '{{}}'
 ;
 
 -- Athena view: Flattened claim exposures from nested JSON
@@ -43,7 +43,7 @@ SELECT
 FROM
     gwclaimcenter.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.exposures) as map(varchar, json))) as t(exposure_key, exposure_value)
-WHERE c.exposures IS NOT NULL AND c.exposures != '{}'
+WHERE c.exposures IS NOT NULL AND c.exposures != '{{}}'
 ;
 
 -- Athena view: Flattened claim reserves from nested JSON
@@ -67,7 +67,7 @@ SELECT
 FROM
     gwclaimcenter.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.reserves) as map(varchar, json))) as t(reserve_key, reserve_value)
-WHERE c.reserves IS NOT NULL AND c.reserves != '{}'
+WHERE c.reserves IS NOT NULL AND c.reserves != '{{}}'
 ;
 
 -- Athena view: Flattened claim contacts from nested JSON
@@ -89,5 +89,5 @@ SELECT
 FROM
     gwclaimcenter.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.contacts) as map(varchar, json))) as t(contact_key, contact_value)
-WHERE c.contacts IS NOT NULL AND c.contacts != '{}'
+WHERE c.contacts IS NOT NULL AND c.contacts != '{{}}'
 ;
