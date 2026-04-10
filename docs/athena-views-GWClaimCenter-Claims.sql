@@ -1,6 +1,15 @@
--- Athena view: Flattened claim activities from nested JSON
--- Query: SELECT * FROM gwclaimcenter.vw_claim_activities
-CREATE OR REPLACE VIEW gwclaimcenter.vw_claim_activities AS
+-- Athena views for Guidewire ClaimCenter consume (gold copy) layer
+-- These views flatten nested JSON columns into queryable tables
+-- Run each CREATE VIEW statement individually in the Athena console
+--
+-- Prerequisites: The consume table gwclaimcenter_consume.claims must exist
+-- and contain rows with the referenced nested columns (activities, exposures, etc.)
+-- Check available columns: DESCRIBE gwclaimcenter_consume.claims;
+
+
+-- View 1: Flattened claim activities
+-- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_activities WHERE claimnumber = '000-00-066666'
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_activities AS
 SELECT
     c.claimnumber
   , c.id as claimid
@@ -18,14 +27,14 @@ SELECT
   , c.month
   , c.day
 FROM
-    gwclaimcenter.claims c
+    gwclaimcenter_consume.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.activities) as map(varchar, json))) as t(activity_key, activity_value)
-WHERE c.activities IS NOT NULL AND c.activities != '{{}}'
-;
+WHERE c.activities IS NOT NULL AND c.activities != '{}';
 
--- Athena view: Flattened claim exposures from nested JSON
--- Query: SELECT * FROM gwclaimcenter.vw_claim_exposures
-CREATE OR REPLACE VIEW gwclaimcenter.vw_claim_exposures AS
+
+-- View 2: Flattened claim exposures
+-- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_exposures WHERE claimnumber = '000-00-066666'
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_exposures AS
 SELECT
     c.claimnumber
   , c.id as claimid
@@ -41,14 +50,14 @@ SELECT
   , c.month
   , c.day
 FROM
-    gwclaimcenter.claims c
+    gwclaimcenter_consume.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.exposures) as map(varchar, json))) as t(exposure_key, exposure_value)
-WHERE c.exposures IS NOT NULL AND c.exposures != '{{}}'
-;
+WHERE c.exposures IS NOT NULL AND c.exposures != '{}';
 
--- Athena view: Flattened claim reserves from nested JSON
--- Query: SELECT * FROM gwclaimcenter.vw_claim_reserves
-CREATE OR REPLACE VIEW gwclaimcenter.vw_claim_reserves AS
+
+-- View 3: Flattened claim reserves
+-- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_reserves WHERE claimnumber = '000-00-066666'
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_reserves AS
 SELECT
     c.claimnumber
   , c.id as claimid
@@ -65,14 +74,14 @@ SELECT
   , c.month
   , c.day
 FROM
-    gwclaimcenter.claims c
+    gwclaimcenter_consume.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.reserves) as map(varchar, json))) as t(reserve_key, reserve_value)
-WHERE c.reserves IS NOT NULL AND c.reserves != '{{}}'
-;
+WHERE c.reserves IS NOT NULL AND c.reserves != '{}';
 
--- Athena view: Flattened claim contacts from nested JSON
--- Query: SELECT * FROM gwclaimcenter.vw_claim_contacts
-CREATE OR REPLACE VIEW gwclaimcenter.vw_claim_contacts AS
+
+-- View 4: Flattened claim contacts
+-- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_contacts WHERE claimnumber = '000-00-066666'
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_contacts AS
 SELECT
     c.claimnumber
   , c.id as claimid
@@ -87,7 +96,6 @@ SELECT
   , c.month
   , c.day
 FROM
-    gwclaimcenter.claims c
+    gwclaimcenter_consume.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.contacts) as map(varchar, json))) as t(contact_key, contact_value)
-WHERE c.contacts IS NOT NULL AND c.contacts != '{{}}'
-;
+WHERE c.contacts IS NOT NULL AND c.contacts != '{}';
