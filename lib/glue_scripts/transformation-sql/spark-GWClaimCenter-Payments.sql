@@ -2,8 +2,8 @@
 SELECT *
 FROM (
     SELECT *, ROW_NUMBER() OVER (
-        PARTITION BY COALESCE(id, paymentid, claimid)  -- Try multiple ID fields
-        ORDER BY COALESCE(createtime, issuedate, current_timestamp()) DESC
+        PARTITION BY id
+        ORDER BY COALESCE(createtime, current_timestamp()) DESC
     ) as rn
     FROM gwclaimcenter.payments
 )
