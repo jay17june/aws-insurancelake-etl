@@ -124,7 +124,8 @@ def lambda_handler(event: dict, _) -> dict:
                 # Ensure common enum fields exist for schema mapping (add empty struct if missing)
                 COMMON_ENUM_FIELDS = [
                     'lossCause', 'faultRating', 'howReported', 'reportedByType',
-                    'assignmentStatus', 'validationLevel', 'strategy'
+                    'assignmentStatus', 'validationLevel', 'strategy', 'segment',
+                    'flagged', 'jurisdiction'
                 ]
                 for field in COMMON_ENUM_FIELDS:
                     if field not in event_data:
