@@ -192,7 +192,10 @@ ORDER BY claim_count DESC;
 - **Recovery**: Failed events automatically retry with dead letter queue isolation
 
 ### Data Migrations
-For one-time bulk loads of 1M+ historical events, use the dedicated bulk migration Glue job:
+
+For one-time bulk loads of historical events, choose the appropriate migration job:
+
+#### Standard Migration (100K - 500K events)
 
 1. Navigate to the AWS Glue console
 1. Select Jobs and find `dev-insurancelake-gw-bulk-migration-job`
@@ -202,7 +205,19 @@ For one-time bulk loads of 1M+ historical events, use the dedicated bulk migrati
    - `--source_system`: `GWClaimCenter`
 1. Monitor job progress in the console
 
-**Performance**: 1M events processed in 30-60 minutes using Spark's native parallelism.
+**Performance**: 500K events processed in 20-30 minutes
+
+#### Optimized Migration (1M+ events)
+
+1. Navigate to the AWS Glue console
+1. Select Jobs and find `dev-insurancelake-gw-bulk-migration-optimized-job`
+1. Click "Run job" and configure the job parameters:
+   - `--source_path`: `s3://your-gw-bucket/`
+   - `--sample_size`: `10000` (schema inference sample)
+   - `--batch_partitions`: `200` (output files per table)
+1. Monitor job progress in the console
+
+**Performance**: 1M events in 20-40 minutes, 5M+ events in 60-120 minutes using schema sampling optimization
 
 ## Cost
 

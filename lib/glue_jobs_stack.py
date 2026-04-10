@@ -312,6 +312,39 @@ class GlueJobsStack(cdk.Stack):
             worker_type='G.1X',
         )
 
+        # Optimized bulk migration job for 1M+ events with schema sampling
+        self.bulk_migration_optimized_job = glue.CfnJob(
+            self,
+            f'{target_environment}{self.logical_id_prefix}GwBulkMigrationOptimizedJob',
+            name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-bulk-migration-optimized-job',
+            description='Optimized Guidewire AppEvents bulk migration - uses schema sampling for 1M+ events',
+            command=glue.CfnJob.JobCommandProperty(
+                name='glueetl',
+                python_version='3',
+                script_location=f's3://{self.glue_scripts_bucket.bucket_name}/etl/etl_guidewire_bulk_migration_optimized.py'
+            ),
+            connections=glue.CfnJob.ConnectionsListProperty(
+                connections=[ job_connection.connection_input.name for job_connection in job_connections ],
+            ) if job_connections else None,
+            default_arguments=common_default_arguments | {
+                '--TempDir': f's3://{self.glue_scripts_temp_bucket.bucket_name}/etl/gw_bulk_migration_optimized/',
+                '--spark-event-logs-path': f's3://{self.glue_scripts_temp_bucket.bucket_name}/spark-ui/gw_bulk_migration_optimized/',
+                '--source_path': 's3://REPLACE_WITH_GW_BUCKET/',
+                '--target_bucket': f's3://{self.buckets.raw.bucket_name}',
+                '--source_system': 'GWClaimCenter',
+                '--sample_size': '5000',     # Schema inference from 5K files instead of all
+                '--batch_partitions': '100', # Write 100 output files per table (parallel processing)
+            },
+            execution_property=glue.CfnJob.ExecutionPropertyProperty(
+                max_concurrent_runs=1,
+            ),
+            glue_version='5.1',
+            max_retries=0,
+            number_of_workers=glue_config.get('workers_bulk', 100),  # Default to more workers for bulk
+            role=self.glue_role.role_arn,
+            worker_type='G.1X',
+        )
+
         # Recommended encryption settings for account Glue Data Catalog
         # Applies to all databases and tables in the account; uncomment to apply
         # glue.CfnDataCatalogEncryptionSettings(
