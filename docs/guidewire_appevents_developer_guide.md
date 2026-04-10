@@ -106,7 +106,34 @@ Guidewire AppEvents contain complex nested structures that require special handl
 
 **Why Stringify Nested Collections?**
 
-Guidewire uses dynamic IDs as map keys (e.g., `"cc:17499"`). When Spark reads this JSON, it infers struct schemas with colon-containing field names that are incompatible with Hive metastore operations. By stringifying these fields in the Lambda, Spark reads them as plain strings, and Athena views parse them on demand.
+Although InsuranceLake has robust field name escaping capabilities (`escape_field_name()` in `custom_mapping.py`) that handle special characters in schema mappings, the stringify approach addresses a different technical challenge: **Spark schema inference** vs **explicit field mapping**.
+
+**The Technical Issue:**
+
+1. **Schema Inference Phase**: When Spark reads raw Guidewire JSON, it automatically infers struct schemas like:
+   ```
+   contacts.cc:65066.displayName
+   exposures.cc:58446.claimantType.code
+   vehicle-incidents.cc:40379.vehicle.make
+   ```
+
+2. **Hive Metastore Incompatibility**: These inferred schemas with colon-containing field names cause Hive operations to fail (e.g., `purgeTable` during partition management) with errors like "no viable alternative at input 'cc:17499'".
+
+3. **Field Escaping Limitation**: InsuranceLake's field escaping works excellently for **explicit field references** in schema mappings (e.g., `` `activities.cc:12345`.`subject` `` → `activity_subject`), but cannot prevent the **automatic schema inference** that happens when Spark first reads the JSON.
+
+**The Stringify Solution:**
+
+By converting nested collections to JSON strings in the Lambda (before InsuranceLake processes them), Spark reads them as simple `StringType` fields instead of inferring complex struct schemas. This approach:
+
+- **Prevents problematic schema inference** while preserving all data
+- **Maintains queryability** through Athena views with `json_parse()` and `UNNEST()`
+- **Works alongside field escaping** for the best of both techniques
+- **Ensures Hive compatibility** for all metastore operations
+
+**Complementary Techniques:**
+- **Field Escaping**: Handles explicit field references in schema mappings
+- **Stringify Preprocessing**: Prevents automatic schema inference with dynamic keys
+- **Together**: Enable complete processing of complex Guidewire event structures
 
 ## Configuration Files
 
