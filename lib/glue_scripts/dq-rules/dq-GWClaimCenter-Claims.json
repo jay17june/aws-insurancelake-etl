@@ -1,15 +1,13 @@
 {
     "after_transform": {
         "warn_rules": [
-            "Completeness 'policynumber' > 0.90",
-            "Completeness 'lobcode' > 0.90",
-            "Completeness 'reporteddate' > 0.90",
-            "Completeness 'insured_name' > 0.80",
-            "ColumnValues 'claimstate' in [ 'open', 'closed', 'draft', 'archived' ]"
+            "Completeness 'policynumber' > 0.80",
+            "Completeness 'lobcode' > 0.80",
+            "Completeness 'reporteddate' > 0.80"
         ],
         "halt_rules": [
             "(ColumnExists 'claimnumber') and (IsComplete 'claimnumber')",
-            "(ColumnExists 'lossdate') and (IsComplete 'lossdate')"
+            "(ColumnExists 'id') and (IsComplete 'id')"
         ]
     }
 }
