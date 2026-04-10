@@ -80,59 +80,39 @@ cd aws-insurancelake-infrastructure
 cdk deploy --all
 ```
 
-**Step 2: Deploy the Guidewire Integration**
+**Step 2: Configure the Integration**
+
+Edit `lib/configuration.py` to customize the integration for your environment:
+
+```python
+# In lib/configuration.py, update the environment settings:
+DEV: {
+    ACCOUNT_ID: active_account_id,
+    REGION: 'us-east-1',  # Set your AWS region
+    LINEAGE: True,
+    CODE_BRANCH: 'develop',
+    # Guidewire AppEvents Integration Settings
+    ENABLE_GUIDEWIRE_APPEVENTS: True,  # Set to False to disable
+    GUIDEWIRE_APPEVENTS_BUCKET: 'your-gw-appevents-bucket',  # Your bucket name
+    GUIDEWIRE_LAMBDA_MEMORY: 512,     # Lambda memory (128-10240 MB)
+    GUIDEWIRE_LAMBDA_TIMEOUT: 15,     # Lambda timeout (1-15 minutes)
+    GUIDEWIRE_LAMBDA_BATCH_SIZE: 100, # SQS messages per invocation (1-10000)
+    GUIDEWIRE_LAMBDA_CONCURRENCY: 10, # Max parallel Lambdas (1-1000)
+    GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 960,  # Must be >= Lambda timeout * 60
+    GUIDEWIRE_GLUE_WORKERS_STANDARD: 25,    # Regular ETL workers (2-250)
+    GUIDEWIRE_GLUE_WORKERS_BULK: 50,        # Bulk migration workers (2-250)
+},
+```
+
+**Step 3: Deploy the Integration**
 ```bash
 git clone https://github.com/jay17june/aws-insurancelake-etl
 cd aws-insurancelake-etl
 git checkout feature/guidewire-appevents-integration
 
-# Deploy with your configuration (no code changes needed)
-cdk deploy --app "python3 app.py" \
-  --context env=prod \
-  --context gwappevents-landing-bucket=your-gw-appevents-bucket \
-  --context region=us-east-1
+# Deploy to your target environment
+ENV=prod cdk deploy
 ```
-
-**Step 3: (Optional) Customize Configuration**
-
-Fine-tune the integration for your specific requirements using CDK context parameters:
-
-```bash
-# Performance tuning for high-volume scenarios:
-cdk deploy --app "python3 app.py" \
-  --context env=prod \
-  --context gwappevents-landing-bucket=prod-gw-appevents \
-  --context region=us-west-2 \
-  --context lambda-memory=2048 \
-  --context lambda-batch-size=500 \
-  --context lambda-concurrency=25 \
-  --context glue-workers-standard=50 \
-  --context glue-workers-bulk=100
-
-# Cost-optimized for development:
-cdk deploy --app "python3 app.py" \
-  --context env=dev \
-  --context lambda-memory=256 \
-  --context lambda-batch-size=50 \
-  --context glue-workers-standard=10
-```
-
-### Configuration Parameters
-
-| Parameter | Default | Range | Purpose |
-|-----------|---------|-------|---------|
-| `env` | Dev | Dev/Test/Prod | Target environment |
-| `gwappevents-landing-bucket` | auto-generated | any | S3 bucket where Guidewire writes AppEvents |
-| `region` | us-east-2 | any AWS region | AWS region for all resources |
-| `lambda-memory` | 512 | 128-10240 MB | Lambda memory (higher = faster processing) |
-| `lambda-timeout` | 15 | 1-15 minutes | Lambda timeout for large batches |
-| `lambda-batch-size` | 100 | 1-10000 | SQS messages per Lambda invocation |
-| `lambda-concurrency` | 10 | 1-1000 | Max parallel Lambdas during surges |
-| `sqs-visibility-timeout` | 960 | ≥ Lambda timeout | SQS message visibility window |
-| `glue-workers-standard` | 25 | 2-250 | Workers for regular ETL processing |
-| `glue-workers-bulk` | 50 | 2-250 | Workers for 1M+ event bulk migrations |
-
-**Parameter validation** prevents invalid configurations (e.g., SQS timeout less than Lambda timeout).
 
 **Step 4: Verify Data Flow**
 ```bash
@@ -259,42 +239,41 @@ We recommend creating a Budget with Cost Explorer to track expenses. Estimated c
 
 ## Configuration Quick Reference
 
-### Common Deployment Scenarios
+### Common Configuration Scenarios
 
-**Production Deployment (High Performance)**:
-```bash
-cdk deploy --app "python3 app.py" \
-  --context env=Prod \
-  --context gwappevents-landing-bucket=prod-gw-appevents-bucket \
-  --context region=us-east-1 \
-  --context lambda-memory=2048 \
-  --context lambda-concurrency=25 \
-  --context glue-workers-standard=50
+**Production Environment (High Performance)**:
+```python
+# In lib/configuration.py:
+PROD: {
+    # ...
+    ENABLE_GUIDEWIRE_APPEVENTS: True,
+    GUIDEWIRE_LAMBDA_MEMORY: 2048,
+    GUIDEWIRE_LAMBDA_CONCURRENCY: 25,
+    GUIDEWIRE_GLUE_WORKERS_STANDARD: 50,
+    GUIDEWIRE_GLUE_WORKERS_BULK: 100,
+}
 ```
 
 **Development Environment (Cost Optimized)**:
-```bash
-cdk deploy --app "python3 app.py" \
-  --context env=Dev \
-  --context gwappevents-landing-bucket=dev-gw-appevents-bucket \
-  --context lambda-memory=256 \
-  --context glue-workers-standard=10
+```python
+# In lib/configuration.py:
+DEV: {
+    # ...
+    ENABLE_GUIDEWIRE_APPEVENTS: True,
+    GUIDEWIRE_LAMBDA_MEMORY: 256,
+    GUIDEWIRE_LAMBDA_BATCH_SIZE: 50,
+    GUIDEWIRE_GLUE_WORKERS_STANDARD: 10,
+    GUIDEWIRE_GLUE_WORKERS_BULK: 25,
+}
 ```
 
-**CAT Event Preparation (Surge Ready)**:
-```bash
-cdk deploy --app "python3 app.py" \
-  --context env=Prod \
-  --context lambda-memory=1024 \
-  --context lambda-batch-size=500 \
-  --context lambda-concurrency=50
-```
-
-**Bulk Migration Setup (1M+ Events)**:
-```bash
-cdk deploy --app "python3 app.py" \
-  --context env=Prod \
-  --context glue-workers-bulk=100
+**Disable Guidewire Integration**:
+```python
+# In lib/configuration.py:
+TEST: {
+    # ...
+    ENABLE_GUIDEWIRE_APPEVENTS: False,  # Guidewire stack will not deploy
+}
 ```
 
 ## Next Steps

@@ -25,19 +25,17 @@ LOGICAL_ID_PREFIX = 'logical_id_prefix'
 RESOURCE_NAME_PREFIX = 'resource_name_prefix'
 CODE_BRANCH = 'code_branch'
 LINEAGE='lineage'
-GUIDEWIRE_APPEVENTS_BUCKET = 'guidewire_appevents_bucket'
 
-# CDK Context Configuration Parameters
-LAMBDA_MEMORY = 'lambda_memory'
-LAMBDA_TIMEOUT = 'lambda_timeout'
-LAMBDA_BATCH_SIZE = 'lambda_batch_size'
-LAMBDA_CONCURRENCY = 'lambda_concurrency'
-LAMBDA_BATCHING_WINDOW = 'lambda_batching_window'
-SQS_VISIBILITY_TIMEOUT = 'sqs_visibility_timeout'
-SQS_RETENTION_DAYS = 'sqs_retention_days'
-DLQ_RETENTION_DAYS = 'dlq_retention_days'
-GLUE_WORKERS_STANDARD = 'glue_workers_standard'
-GLUE_WORKERS_BULK = 'glue_workers_bulk'
+# Guidewire AppEvents Integration Configuration
+ENABLE_GUIDEWIRE_APPEVENTS = 'enable_guidewire_appevents'
+GUIDEWIRE_APPEVENTS_BUCKET = 'guidewire_appevents_bucket'
+GUIDEWIRE_LAMBDA_MEMORY = 'guidewire_lambda_memory'
+GUIDEWIRE_LAMBDA_TIMEOUT = 'guidewire_lambda_timeout'
+GUIDEWIRE_LAMBDA_BATCH_SIZE = 'guidewire_lambda_batch_size'
+GUIDEWIRE_LAMBDA_CONCURRENCY = 'guidewire_lambda_concurrency'
+GUIDEWIRE_SQS_VISIBILITY_TIMEOUT = 'guidewire_sqs_visibility_timeout'
+GUIDEWIRE_GLUE_WORKERS_STANDARD = 'guidewire_glue_workers_standard'
+GUIDEWIRE_GLUE_WORKERS_BULK = 'guidewire_glue_workers_bulk'
 
 # Used in Automated Outputs
 VPC_ID = 'vpc_id'
@@ -124,7 +122,16 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
                 LINEAGE: True,
                 # VPC_CIDR: '10.20.0.0/22',
                 CODE_BRANCH: 'develop',
+                # Guidewire AppEvents Integration Settings
+                ENABLE_GUIDEWIRE_APPEVENTS: True,
                 GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
+                GUIDEWIRE_LAMBDA_MEMORY: 512,
+                GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+                GUIDEWIRE_LAMBDA_BATCH_SIZE: 100,
+                GUIDEWIRE_LAMBDA_CONCURRENCY: 10,
+                GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 960,
+                GUIDEWIRE_GLUE_WORKERS_STANDARD: 25,
+                GUIDEWIRE_GLUE_WORKERS_BULK: 50,
             },
             TEST: {
                 ACCOUNT_ID: active_account_id,
@@ -132,7 +139,16 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
                 LINEAGE: True,
                 # VPC_CIDR: '10.10.0.0/22',
                 CODE_BRANCH: 'test',
+                # Guidewire AppEvents Integration Settings
+                ENABLE_GUIDEWIRE_APPEVENTS: True,
                 GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
+                GUIDEWIRE_LAMBDA_MEMORY: 512,
+                GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+                GUIDEWIRE_LAMBDA_BATCH_SIZE: 100,
+                GUIDEWIRE_LAMBDA_CONCURRENCY: 10,
+                GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 960,
+                GUIDEWIRE_GLUE_WORKERS_STANDARD: 25,
+                GUIDEWIRE_GLUE_WORKERS_BULK: 50,
             },
             PROD: {
                 ACCOUNT_ID: active_account_id,
@@ -140,7 +156,16 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
                 LINEAGE: True,
                 # VPC_CIDR: '10.0.0.0/22',
                 CODE_BRANCH: 'main',
+                # Guidewire AppEvents Integration Settings
+                ENABLE_GUIDEWIRE_APPEVENTS: True,
                 GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
+                GUIDEWIRE_LAMBDA_MEMORY: 1024,
+                GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+                GUIDEWIRE_LAMBDA_BATCH_SIZE: 200,
+                GUIDEWIRE_LAMBDA_CONCURRENCY: 20,
+                GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 1200,
+                GUIDEWIRE_GLUE_WORKERS_STANDARD: 50,
+                GUIDEWIRE_GLUE_WORKERS_BULK: 100,
             }
         }
 
@@ -255,91 +280,3 @@ def get_resource_name_prefix() -> str:
     return get_local_configuration(DEPLOYMENT)[RESOURCE_NAME_PREFIX]
 
 
-def get_context_configuration(app, target_environment: str) -> dict:
-    """Get configuration from CDK context parameters with validation and defaults
-
-    Parameters
-    ----------
-    app
-        CDK App instance to read context from
-    target_environment
-        The target environment (DEV, TEST, PROD)
-
-    Returns
-    -------
-    dict
-        Configuration dictionary with validated context parameters
-
-    Raises
-    ------
-    ValueError
-        If context parameters are invalid or out of range
-    """
-    active_account_id = boto3.client('sts').get_caller_identity()['Account']
-
-    # Get context values with defaults
-    region = app.node.try_get_context('region') or 'us-east-2'
-    gw_bucket = app.node.try_get_context('gwappevents-landing-bucket') or f'gw-appevents-{active_account_id}-collect'
-
-    # Numeric parameters with validation
-    lambda_memory = int(app.node.try_get_context('lambda-memory') or 512)
-    if not (128 <= lambda_memory <= 10240):
-        raise ValueError(f'lambda-memory must be 128-10240 MB, got {lambda_memory}')
-
-    lambda_timeout = int(app.node.try_get_context('lambda-timeout') or 15)
-    if not (1 <= lambda_timeout <= 15):
-        raise ValueError(f'lambda-timeout must be 1-15 minutes, got {lambda_timeout}')
-
-    lambda_batch_size = int(app.node.try_get_context('lambda-batch-size') or 100)
-    if not (1 <= lambda_batch_size <= 10000):
-        raise ValueError(f'lambda-batch-size must be 1-10000, got {lambda_batch_size}')
-
-    lambda_concurrency = int(app.node.try_get_context('lambda-concurrency') or 10)
-    if not (1 <= lambda_concurrency <= 1000):
-        raise ValueError(f'lambda-concurrency must be 1-1000, got {lambda_concurrency}')
-
-    lambda_batching_window = int(app.node.try_get_context('lambda-batching-window') or 30)
-    if not (0 <= lambda_batching_window <= 300):
-        raise ValueError(f'lambda-batching-window must be 0-300 seconds, got {lambda_batching_window}')
-
-    sqs_visibility_timeout = int(app.node.try_get_context('sqs-visibility-timeout') or 960)
-    if not (lambda_timeout * 60 <= sqs_visibility_timeout <= 43200):
-        raise ValueError(f'sqs-visibility-timeout must be >= lambda-timeout ({lambda_timeout * 60}s) and <= 12 hours')
-
-    sqs_retention_days = int(app.node.try_get_context('sqs-retention-days') or 4)
-    if not (1 <= sqs_retention_days <= 14):
-        raise ValueError(f'sqs-retention-days must be 1-14 days, got {sqs_retention_days}')
-
-    dlq_retention_days = int(app.node.try_get_context('dlq-retention-days') or 14)
-    if not (1 <= dlq_retention_days <= 14):
-        raise ValueError(f'dlq-retention-days must be 1-14 days, got {dlq_retention_days}')
-
-    glue_workers_standard = int(app.node.try_get_context('glue-workers-standard') or 25)
-    if not (2 <= glue_workers_standard <= 250):
-        raise ValueError(f'glue-workers-standard must be 2-250, got {glue_workers_standard}')
-
-    glue_workers_bulk = int(app.node.try_get_context('glue-workers-bulk') or 50)
-    if not (2 <= glue_workers_bulk <= 250):
-        raise ValueError(f'glue-workers-bulk must be 2-250, got {glue_workers_bulk}')
-
-    # Return configuration dict using existing constants
-    return {
-        ACCOUNT_ID: active_account_id,
-        REGION: region,
-        GUIDEWIRE_APPEVENTS_BUCKET: gw_bucket,
-        LAMBDA_MEMORY: lambda_memory,
-        LAMBDA_TIMEOUT: lambda_timeout,
-        LAMBDA_BATCH_SIZE: lambda_batch_size,
-        LAMBDA_CONCURRENCY: lambda_concurrency,
-        LAMBDA_BATCHING_WINDOW: lambda_batching_window,
-        SQS_VISIBILITY_TIMEOUT: sqs_visibility_timeout,
-        SQS_RETENTION_DAYS: sqs_retention_days,
-        DLQ_RETENTION_DAYS: dlq_retention_days,
-        GLUE_WORKERS_STANDARD: glue_workers_standard,
-        GLUE_WORKERS_BULK: glue_workers_bulk,
-        # Add base configuration for compatibility
-        LOGICAL_ID_PREFIX: get_logical_id_prefix(),
-        RESOURCE_NAME_PREFIX: get_resource_name_prefix(),
-        LINEAGE: True,
-        CODE_BRANCH: {'Dev': 'develop', 'Test': 'test', 'Prod': 'main'}[target_environment],
-    }
