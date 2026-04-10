@@ -113,12 +113,22 @@ def lambda_handler(event: dict, _) -> dict:
                 # Spark from inferring structs with dynamic colon-containing
                 # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
                 event_data = json.loads(content)
-                # Ensure all expected fields exist for changetype transform (add empty if missing)
+
+                # Ensure all expected nested collections exist (add empty if missing)
                 for field in STRINGIFY_FIELDS.get(table_name, []):
                     if field not in event_data:
                         event_data[field] = {}  # Add empty object for missing fields
                     if not isinstance(event_data[field], str):
                         event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
+
+                # Ensure common enum fields exist for schema mapping (add empty struct if missing)
+                COMMON_ENUM_FIELDS = [
+                    'lossCause', 'faultRating', 'howReported', 'reportedByType',
+                    'assignmentStatus', 'validationLevel', 'strategy'
+                ]
+                for field in COMMON_ENUM_FIELDS:
+                    if field not in event_data:
+                        event_data[field] = {'code': 'unknown', 'name': 'Unknown'}
 
                 single_line = json.dumps(event_data, separators=(',', ':'))
                 events_by_table[table_name].append(single_line)
