@@ -54,7 +54,7 @@ The integration processes Guidewire AppEvents through an auto-scaling pipeline:
 | **AWS Glue** | ETL processing with configurable workers (25-100 workers per job) |
 | **AWS Step Functions** | Pipeline orchestration with retry logic |
 | **Amazon DynamoDB** | Job audit trails and data lineage tracking |
-| **Amazon Athena** | SQL analytics with pre-built views for nested data |
+| **Amazon Athena** | SQL analytics with optional views for nested data ([reference SQL](athena-views-GWClaimCenter-Claims.sql)) |
 | **AWS KMS** | Data encryption across all storage layers |
 
 ## Getting Started

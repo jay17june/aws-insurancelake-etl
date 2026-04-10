@@ -173,20 +173,21 @@ Each event type uses minimal configuration that adapts automatically to payload 
 | **Transform Spec** | `GWClaimCenter-Claims.json` | `GWClaimCenter-Exposures.json` | `GWClaimCenter-Payments.json` |
 | **Data Quality Rules** | `dq-GWClaimCenter-Claims.json` | `dq-GWClaimCenter-Exposures.json` | `dq-GWClaimCenter-Payments.json` |
 | **Consume SQL** | `spark-GWClaimCenter-Claims.sql` | `spark-GWClaimCenter-Exposures.sql` | `spark-GWClaimCenter-Payments.sql` |
-| **Athena Views** | Generated dynamically | Generated dynamically | Generated dynamically |
+| **Athena Views** | Manual ([reference SQL](athena-views-GWClaimCenter-Claims.sql)) | — | — |
 
 **Key Change**: No schema mapping CSV files needed. InsuranceLake automatically processes ALL fields from Guidewire events.
 
+{: .note }
+Athena views for flattening nested JSON (activities, exposures, contacts, reserves) are provided as reference SQL in `docs/athena-views-GWClaimCenter-Claims.sql`. These are not created automatically by the pipeline because the nested columns are optional and may not exist in every batch. Create the views manually in the Athena console once your cleanse table has accumulated events containing these fields.
+
 ### Schema Mapping Details
 
-Schema mappings follow consistent Guidewire-specific patterns:
+With dynamic schema processing, explicit schema mappings are no longer used. InsuranceLake's `clean_column_names()` automatically processes ALL fields. The following patterns show how Guidewire fields are handled:
 
-**Enum Struct Extraction**:
-```csv
-SourceName,DestName
-flagged,null
-`flagged`.`code`,flagged
-faultRating,null
+**Enum Normalization** (handled in Lambda):
+```
+state: {"code": "open", "name": "Open"} → state: "open"
+lobCode: {"code": "PersonalAutoLine"} → lobcode: "PersonalAutoLine"
 `faultRating`.`code`,faultrating
 ```
 
