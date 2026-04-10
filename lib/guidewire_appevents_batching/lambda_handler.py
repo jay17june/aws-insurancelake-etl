@@ -109,13 +109,17 @@ def lambda_handler(event: dict, _) -> dict:
                 )
                 content = obj_response['Body'].read().decode('utf-8').strip()
 
-                # Parse JSON and stringify nested collections to prevent
-                # Spark from inferring structs with dynamic colon-containing
-                # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
+                # Parse JSON and normalize for consistent Parquet schema
                 event_data = json.loads(content)
 
-                # Stringify nested collections only (no field defaults needed)
-                # InsuranceLake will handle missing fields dynamically
+                # Normalize enum fields to consistent string values (extract .code)
+                # This prevents Parquet schema conflicts between STRING and STRUCT
+                for field_name, field_value in list(event_data.items()):
+                    if isinstance(field_value, dict) and 'code' in field_value and 'name' in field_value:
+                        # Convert {"code": "value", "name": "Display"} → "value"
+                        event_data[field_name] = field_value['code']
+
+                # Stringify nested collections to prevent Hive issues with colon-containing keys
                 for field in STRINGIFY_FIELDS.get(table_name, []):
                     if field in event_data and not isinstance(event_data[field], str):
                         event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
