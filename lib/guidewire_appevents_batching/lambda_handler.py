@@ -113,8 +113,11 @@ def lambda_handler(event: dict, _) -> dict:
                 # Spark from inferring structs with dynamic colon-containing
                 # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
                 event_data = json.loads(content)
+                # Ensure all expected fields exist for changetype transform (add empty if missing)
                 for field in STRINGIFY_FIELDS.get(table_name, []):
-                    if field in event_data and not isinstance(event_data[field], str):
+                    if field not in event_data:
+                        event_data[field] = {}  # Add empty object for missing fields
+                    if not isinstance(event_data[field], str):
                         event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
 
                 single_line = json.dumps(event_data, separators=(',', ':'))

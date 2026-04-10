@@ -21,15 +21,7 @@
             }
         ],
 
-        "changetype": {
-            "activities": "json",
-            "contacts": "json",
-            "exposures": "json",
-            "reserves": "json",
-            "policyaddresses": "json",
-            "vehicle_incidents": "json",
-            "notes": "json"
-        },
+        "changetype": {},
 
         "combinecolumns": [
             {
