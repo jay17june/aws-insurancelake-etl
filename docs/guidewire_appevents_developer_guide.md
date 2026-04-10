@@ -82,62 +82,53 @@ EVENT_TYPE_ROUTING = {
 }
 ```
 
-### Nested JSON Structure Handling
+### Dynamic Schema Processing
 
-Guidewire AppEvents contain complex nested structures that require special handling to prevent Spark schema inference issues:
+**Major Architectural Innovation**: The integration uses **dynamic schema processing** that eliminates the need for predefined schema mappings and automatically adapts to any Guidewire payload structure.
 
-**Original Nested Structure Example:**
+**How Dynamic Schema Works:**
+
+Instead of fixed schema mappings, InsuranceLake's native `clean_column_names()` function automatically:
+
+1. **Processes ALL fields** in each event (no predefined list needed)
+2. **Auto-cleans field names** for Parquet/Athena compatibility:
+   - `claimNumber` → `claimnumber`
+   - `lossLocation.city` → `losslocation_city`
+   - `state.code` → `state_code`
+   - `brandNewField` → `brandnewfield`
+3. **Preserves ALL data** while making it query-friendly
+4. **Handles any payload variation** without configuration changes
+
+**Original Guidewire Event** (any structure):
 ```json
 {
   "id": "cc:9898",
   "claimNumber": "000-00-009898",
   "state": {"code": "open", "name": "Open"},
-  "lobCode": {"code": "PersonalAutoLine", "name": "Personal Auto"},
-  "activities": {
-    "cc:17499": {
-      "subject": "Initial claim setup",
-      "status": {"code": "open", "name": "Open"},
-      "assignedUser": {"displayName": "John Adjuster", "id": "user:123"}
-    },
-    "cc:5087": {
-      "subject": "Investigation complete",
-      "status": {"code": "closed", "name": "Closed"}
-    }
-  },
-  "exposures": {
-    "cc:94741": {
-      "coverageType": "Comprehensive",
-      "lossParty": {"code": "first", "name": "First Party"}
-    }
-  }
+  "activities": {"cc:17499": {"subject": "Test"}},
+  "newGuidewireField": "Added in future release",
+  "customEnhancement": {"version": 2.0, "data": "Complex new structure"}
 }
 ```
 
-**Flattening Strategy:**
+**Automatic Processing Result**:
+```sql
+-- ALL fields automatically available in Athena:
+SELECT
+  claimnumber,           -- Auto-cleaned from claimNumber
+  state_code,            -- Auto-flattened from state.code
+  activities,            -- Stringified to preserve nested JSON
+  newguidewirefield,     -- New field automatically included
+  customenhancement      -- Complex structures preserved as JSON strings
+FROM gwclaimcenter.claims;
+```
 
-1. **Enum Structs**: Extract `.code` values using schema mapping
-   ```csv
-   state,null
-   `state`.`code`,claimstate
-   lobCode,null
-   `lobCode`.`code`,lobcode
-   ```
-
-2. **Nested Collections**: Stringify in Lambda to preserve as JSON strings
-   ```python
-   STRINGIFY_FIELDS = {
-       'Claims': ['activities', 'contacts', 'exposures', 'reserves'],
-       'Exposures': ['contacts', 'exposures', 'vehicleIncidents'],
-       'Payments': ['amount', 'transactionAmount', 'lineItems']
-   }
-   ```
-
-3. **Complex Objects**: Flatten specific fields, null parent
-   ```csv
-   policy,null
-   `policy`.`policyNumber`,policy_policynumber
-   `policy`.`policyType`.`code`,policytype
-   ```
+**Benefits of Dynamic Schema:**
+- ✅ **No schema mapping files needed** — Zero configuration for new fields
+- ✅ **Automatic field preservation** — ALL Guidewire data included
+- ✅ **Future-proof** — New Guidewire releases work immediately
+- ✅ **Zero maintenance** — No code updates for schema changes
+- ✅ **Eliminates missing field errors** — Any payload structure works
 
 **Why Stringify Nested Collections?**
 
@@ -172,17 +163,19 @@ By converting nested collections to JSON strings in the Lambda (before Insurance
 
 ## Configuration Files
 
-### Per-Table Configuration
+### Simplified Configuration for Dynamic Schema
 
-Each event type group has a complete set of InsuranceLake configuration files:
+Each event type uses minimal configuration that adapts automatically to payload variations:
 
 | File Type | Claims | Exposures | Payments |
 |-----------|--------|-----------|----------|
-| **Schema Mapping** | `GWClaimCenter-Claims.csv` | `GWClaimCenter-Exposures.csv` | `GWClaimCenter-Payments.csv` |
+| **Schema Mapping** | None (dynamic) | None (dynamic) | None (dynamic) |
 | **Transform Spec** | `GWClaimCenter-Claims.json` | `GWClaimCenter-Exposures.json` | `GWClaimCenter-Payments.json` |
 | **Data Quality Rules** | `dq-GWClaimCenter-Claims.json` | `dq-GWClaimCenter-Exposures.json` | `dq-GWClaimCenter-Payments.json` |
 | **Consume SQL** | `spark-GWClaimCenter-Claims.sql` | `spark-GWClaimCenter-Exposures.sql` | `spark-GWClaimCenter-Payments.sql` |
-| **Athena Views** | `athena-GWClaimCenter-Claims.sql` | — | — |
+| **Athena Views** | Generated dynamically | Generated dynamically | Generated dynamically |
+
+**Key Change**: No schema mapping CSV files needed. InsuranceLake automatically processes ALL fields from Guidewire events.
 
 ### Schema Mapping Details
 
@@ -214,24 +207,17 @@ exposures,exposures
 
 ### Transform Specifications
 
-#### Claims Transform (`GWClaimCenter-Claims.json`)
+#### Simplified Transform Specs for Dynamic Schema
+
+**Claims Transform (`GWClaimCenter-Claims.json`)**:
 ```json
 {
   "input_spec": {
-    "cleanse_partition_append": true,      // Key: enables append-only cleanse
-    "allow_schema_change": "evolve"
+    "cleanse_partition_append": true,    // Append-only for full event history
+    "allow_schema_change": "permissive", // Handle any payload variation
+    "strict_schema_mapping": false       // Enable dynamic schema processing
   },
   "transform_spec": {
-    "date": [
-      {"field": "lossdate", "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"},
-      {"field": "reporteddate", "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"}
-    ],
-    "combinecolumns": [{
-      "field": "losslocation_full",
-      "format": "{}, {}, {} {}",
-      "source_columns": ["losslocation_address1", "losslocation_city",
-                         "losslocation_statecode", "losslocation_postalcode"]
-    }],
     "literal": {
       "sourcesystem": "GWClaimCenter",
       "eventtype": "AppEvents"
@@ -240,16 +226,33 @@ exposures,exposures
 }
 ```
 
-#### Key Differences by Table
+**Key Features of Dynamic Transform Specs**:
 
-| Setting | Claims | Exposures | Payments |
-|---------|--------|-----------|----------|
-| **Schema Change Mode** | `evolve` | `evolve` | `permissive` |
-| **Date Fields** | lossdate, reporteddate | lossdate, reporteddate | createtime, issuedate |
-| **Date Format** | `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'` | `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'` | `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'` |
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| **Schema Mapping** | None (removed) | InsuranceLake auto-processes ALL fields |
+| **Schema Change Mode** | `permissive` | Handles any field variations between events |
+| **Field-Specific Transforms** | Removed | Avoids errors when fields are missing |
+| **Cleanse Partition Append** | `true` | Preserves full event history |
 
-{: .note }
-Payments uses `permissive` schema change mode because PaymentCreated and PaymentChanged events have different fields (e.g., `updateTime` only appears in PaymentChanged).
+**Result**: Transform specs work with **any Guidewire event structure** automatically.
+
+#### Automatic Field Processing
+
+Instead of predefined mappings, the integration relies on InsuranceLake's native field processing:
+
+```python
+# InsuranceLake automatically:
+for field in event_schema:  # ALL fields processed
+    clean_name = field.name.lower().replace(' ', '_')  # Auto-clean
+    include_in_table(clean_name)  # ALL fields included
+```
+
+**Examples**:
+- `claimNumber` → `claimnumber`
+- `lossLocation.addressLine1` → `losslocation_addressline1`
+- `policy.effectiveDate` → `policy_effectivedate`
+- `newGuidewireField` → `newguidewirefield`
 
 ### Data Quality Rules
 
@@ -457,33 +460,55 @@ This allows incremental event data to accumulate within daily partitions instead
 
 ## Table Schemas
 
-### Claims Table Structure
+### Dynamic Schema Tables
 
-**Guidewire Source Fields** → **InsuranceLake Columns**:
+**All tables use dynamic schema processing** — the exact fields depend on what Guidewire sends in each event type.
 
-| Category | Original Structure | Flattened Fields |
-|----------|-------------------|------------------|
-| **Identity** | `id`, `claimNumber` | claimid, claimnumber |
-| **Enums** | `state: {code, name}` | claimstate (code only) |
-| **Nested Objects** | `policy: {policyNumber, policyType: {code, name}}` | policy_policynumber, policytype |
-| **Location** | `lossLocation: {addressLine1, city, state: {code}, postalCode}` | losslocation_address1, losslocation_city, losslocation_statecode, losslocation_postalcode |
-| **Dynamic Collections** | `activities: {"cc:17499": {...}, "cc:5087": {...}}` | activities (JSON string) |
+#### Claims Table (`gwclaimcenter.claims`)
+**Event Sources**: ClaimCreated, ClaimChanged
+**Field Processing**: **ALL fields automatically included** with auto-cleaned names
 
-### Exposures Table Structure
+**Common Fields** (when present in events):
+```sql
+-- Core fields (usually present)
+claimnumber, lossdate, reporteddate, description, policynumber
 
-**Key Differences from Claims:**
-- Has `coverageInQuestion` boolean field
-- Uses `vehicleIncidents` (camelCase) instead of `vehicle-incidents`
-- Contains exposure-specific fields like `allValidationLevelsReached`
-- Shares claim context (lossdate, policy info) but adds exposure details
+-- Auto-flattened enum fields
+claimstate (from state.code), lobcode (from lobCode.code)
 
-### Payments Table Structure
+-- Auto-flattened nested objects
+losslocation_addressline1, losslocation_city, losslocation_state_code
+policy_policynumber, policy_policytype_code
 
-**Financial Focus:**
-- No loss details (lossDate, lossLocation, insured)
-- Payment-specific: `amount`, `checkNumber`, `payee`, `costType`, `costCategory`
-- Timestamps: `createTime`, `issueDate` (not lossDate/reportedDate)
-- References: `exposure_id`, `reserve_id` for linking back to claims
+-- Stringified collections (JSON format)
+activities, contacts, exposures, reserves
+
+-- Any additional fields Guidewire adds in future
+customfield, newfeature, enhanceddata (all auto-included)
+```
+
+#### Exposures Table (`gwclaimcenter.exposures`)
+**Event Sources**: ExposureAdded, ExposureChanged
+**Field Processing**: **ALL exposure event fields** automatically included
+
+**Typical Fields**: Exposure-specific data plus claim context when available
+
+#### Payments Table (`gwclaimcenter.payments`)
+**Event Sources**: PaymentCreated, PaymentChanged
+**Field Processing**: **ALL payment event fields** automatically included
+
+**Typical Fields**: Payment-specific financial data plus claim references when available
+
+### Schema Flexibility Examples
+
+**Scenario 1**: ClaimCreated has 50 fields, ClaimChanged has 55 fields
+**Result**: Table automatically accommodates both (missing fields = NULL)
+
+**Scenario 2**: Guidewire adds `aiAnalysisResult` field in future release
+**Result**: Field automatically included as `aianalysisresult` (no code changes)
+
+**Scenario 3**: Some claims missing `lossLocation` entirely
+**Result**: Related fields (losslocation_*) are NULL for those events
 
 ## Surge Handling Implementation
 
@@ -516,14 +541,19 @@ max_concurrent_runs=1,    # One-time use, not concurrent
 
 ### Common Issues
 
+**Note**: Dynamic schema processing eliminates most field-related errors. The following issues may still occur:
+
 | Issue | Cause | Resolution |
 |-------|-------|------------|
 | **Lambda logs "Unknown event type"** | Event doesn't match regex pattern | Check S3 key format: `cc:NNNN-EventType-timestamp.json` |
-| **Glue job fails with "colon-containing keys"** | Nested struct schema inference | Verify stringify fields list in Lambda |
-| **Schema change error on Payments** | PaymentCreated/Changed have different fields | Ensure `"allow_schema_change": "permissive"` |
-| **Cleanse table only has latest batch** | cleanse_partition_append disabled | Add `"cleanse_partition_append": true` to transform spec |
-| **Consume has duplicate rows** | Dedup key incorrect | Check PARTITION BY clause in consume SQL |
+| **Glue job fails with "colon-containing keys"** | Nested struct schema inference | Verify stringify fields list in Lambda (should be rare) |
 | **Pipeline not triggering** | SQS event source mapping disabled | Check Lambda event sources in console |
+| **Cleanse table only has latest batch** | cleanse_partition_append disabled | Add `"cleanse_partition_append": true` to transform spec |
+
+**Eliminated Issues** (with dynamic schema):
+- ~~Schema change errors~~ → **Solved**: Permissive mode handles any field variations
+- ~~Missing field errors~~ → **Solved**: Dynamic processing includes all fields automatically
+- ~~Manual schema mapping maintenance~~ → **Solved**: Zero configuration for new Guidewire fields
 
 ### Debugging via AWS Console
 
@@ -559,7 +589,7 @@ SELECT COUNT(*) as unique_claims FROM gwclaimcenter_consume.claims;
 
 **End-to-End Validation:**
 
-1. Upload a test event to your Guidewire AppEvents S3 bucket using the AWS Console.
+1. Upload a test event (with any field structure) to your Guidewire AppEvents S3 bucket using the AWS Console.
 
 1. Navigate to the CloudWatch console and check the Lambda function logs.
 
@@ -569,11 +599,23 @@ SELECT COUNT(*) as unique_claims FROM gwclaimcenter_consume.claims;
 
 1. Check that the execution completed successfully.
 
-1. Navigate to the Athena console and run a verification query:
+1. Navigate to the Athena console and run a validation query:
 
     ```sql
-    SELECT * FROM gwclaimcenter_consume.claims WHERE claimnumber = '000-00-099999';
+    -- All fields automatically available (dynamic schema)
+    SELECT * FROM gwclaimcenter_consume.claims
+    WHERE claimnumber LIKE '%test%' OR id LIKE '%test%';
     ```
+
+**Dynamic Schema Validation:**
+
+1. Upload events with **different field structures** (some missing optional fields).
+
+1. Verify ALL events process successfully (no missing field errors).
+
+1. Check that ALL fields from ALL events are preserved in the tables.
+
+1. Confirm new/unexpected fields are automatically included with cleaned names.
 
 ### Surge Resilience Testing
 

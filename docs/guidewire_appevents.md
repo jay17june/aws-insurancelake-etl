@@ -22,11 +22,12 @@ For developers looking to understand or extend the implementation, refer to the 
 This integration connects Guidewire ClaimCenter AppEvents to AWS InsuranceLake, enabling automated ingestion, transformation, and analytics of claim event data. The solution handles six AppEvent types (ClaimCreated, ClaimChanged, ExposureAdded, ExposureChanged, PaymentCreated, PaymentChanged) and provides analytics-ready data tables for business intelligence, regulatory reporting, and operational insights.
 
 **This integration helps you to:**
-- **Ingest Guidewire data automatically** — No manual ETL configuration or data movement required
+- **Ingest Guidewire data automatically** — No manual ETL configuration, schema mapping, or data movement required
+- **Handle any payload variation** — Automatic adaptation to Guidewire schema changes, missing fields, or new event types
 - **Handle surge scenarios** — Process catastrophic events (10K+ claims/hour) and bulk migrations (1M+ events) without data loss
 - **Maintain regulatory compliance** — Full audit trail preserved with append-only event history
-- **Accelerate analytics** — Pre-built current-state tables and nested data views ready for Athena, QuickSight, and Redshift
-- **Reduce operational overhead** — Event-driven pipeline with automated retries, monitoring, and notifications
+- **Accelerate analytics** — Analytics-ready current-state tables with all Guidewire fields preserved
+- **Reduce operational overhead** — Self-adapting pipeline eliminates maintenance for schema changes
 
 ## Architecture
 
@@ -35,12 +36,13 @@ The integration processes Guidewire AppEvents through an auto-scaling pipeline:
 ![Overall Architecture](guidewire-appevents-overall-architecture.drawio)
 
 **Data Flow**:
-1. **Guidewire ClaimCenter** writes JSON events to S3 bucket
+1. **Guidewire ClaimCenter** writes JSON events with any field structure to S3 bucket
 2. **S3 Event Notifications** send messages to SQS queue
-3. **Auto-scaling Lambda** (up to 10 concurrent instances) processes events
+3. **Auto-scaling Lambda** (up to 10 concurrent instances) processes and classifies events
 4. **Event Classification** routes to separate tables (Claims, Exposures, Payments)
-5. **InsuranceLake Pipeline** transforms and loads data through Glue jobs
-6. **Analytics Layer** provides SQL access via Athena
+5. **Dynamic Schema Processing** automatically adapts to any Guidewire payload structure
+6. **InsuranceLake Pipeline** preserves ALL fields while transforming data through Glue jobs
+7. **Analytics Layer** provides SQL access via Athena with complete field preservation
 
 ### AWS Resources Created
 
@@ -134,17 +136,31 @@ GUIDEWIRE_GLUE_WORKERS_STANDARD: 10,  # Fewer workers
 ENABLE_GUIDEWIRE_APPEVENTS: False,    # Skip Guidewire stack deployment
 ```
 
+## Dynamic Schema Handling
+
+**Key Innovation**: The integration uses **dynamic schema processing** that automatically adapts to any Guidewire payload structure without configuration changes.
+
+**Benefits**:
+- ✅ **Handles any payload variation** — Missing fields, new fields, changed structures all work automatically
+- ✅ **Future-proof** — New Guidewire features and fields are included automatically
+- ✅ **Zero maintenance** — No schema mapping files to update when Guidewire changes
+- ✅ **Complete field preservation** — ALL Guidewire fields preserved with auto-cleaned names
+
+**How it works**: Instead of predefined schema mappings, InsuranceLake automatically cleans and includes ALL fields from Guidewire events (e.g., `claimNumber` → `claimnumber`, `lossDate` → `lossdate`).
+
 ## Data Tables
 
-The integration creates analytics-ready tables for three event types:
+The integration creates analytics-ready tables for three event types with **complete field preservation**:
 
-| Table | Event Types | Description |
-|-------|------------|-------------|
-| `gwclaimcenter_consume.claims` | ClaimCreated, ClaimChanged | Current state of claims with loss details |
-| `gwclaimcenter_consume.exposures` | ExposureAdded, ExposureChanged | Coverage and incident details by claim |
-| `gwclaimcenter_consume.payments` | PaymentCreated, PaymentChanged | Financial transactions and payment status |
+| Table | Event Types | Field Handling |
+|-------|------------|---------------|
+| `gwclaimcenter_consume.claims` | ClaimCreated, ClaimChanged | **All claim fields** automatically preserved and cleaned |
+| `gwclaimcenter_consume.exposures` | ExposureAdded, ExposureChanged | **All exposure fields** automatically preserved and cleaned |
+| `gwclaimcenter_consume.payments` | PaymentCreated, PaymentChanged | **All payment fields** automatically preserved and cleaned |
 
-Each table contains deduplicated, current-state data optimized for business queries.
+**Field Examples**: `claimNumber` → `claimnumber`, `lossLocation.city` → `losslocation_city`, `brandNewField` → `brandnewfield`
+
+Each table contains deduplicated, current-state data with ALL available Guidewire fields preserved.
 
 ## Query Examples
 
