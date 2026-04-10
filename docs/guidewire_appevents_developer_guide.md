@@ -234,7 +234,7 @@ SELECT ...
 FROM (
     SELECT *, ROW_NUMBER() OVER (
         PARTITION BY claimnumber
-        ORDER BY execution_id DESC
+        ORDER BY reporteddate DESC
     ) as rn
     FROM gwclaimcenter.claims
 )
@@ -242,11 +242,11 @@ WHERE rn = 1
 ORDER BY lossdate DESC, claimnumber ASC
 ```
 
-| Table | Dedup Key | Logic |
-|-------|-----------|-------|
-| Claims | `claimnumber` | Latest ClaimCreated or ClaimChanged per claim |
-| Exposures | `claimid` | Latest ExposureAdded or ExposureChanged per claim |
-| Payments | `paymentid` | Latest PaymentCreated or PaymentChanged per payment |
+| Table | Dedup Key | Ordering Field | Logic |
+|-------|-----------|----------------|-------|
+| Claims | `claimnumber` | `reporteddate DESC` | Most recently reported claim event per claim |
+| Exposures | `claimid` | `reporteddate DESC` | Most recently reported exposure event per claim |
+| Payments | `paymentid` | `createtime DESC` | Most recently created payment event per payment |
 
 ## Implementation Details
 

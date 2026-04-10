@@ -53,7 +53,7 @@ SELECT
 FROM (
     SELECT *, ROW_NUMBER() OVER (
         PARTITION BY claimnumber
-        ORDER BY execution_id DESC
+        ORDER BY reporteddate DESC
     ) as rn
     FROM gwclaimcenter.claims
 )

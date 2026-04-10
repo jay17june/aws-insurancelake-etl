@@ -36,7 +36,7 @@ SELECT
 FROM (
     SELECT *, ROW_NUMBER() OVER (
         PARTITION BY paymentid
-        ORDER BY execution_id DESC
+        ORDER BY createtime DESC
     ) as rn
     FROM gwclaimcenter.payments
 )
