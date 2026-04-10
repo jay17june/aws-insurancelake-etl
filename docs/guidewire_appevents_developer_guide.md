@@ -26,8 +26,43 @@ The integration uses InsuranceLake's 3-layer architecture with custom partition 
 ![Data Layer Model](guidewire-appevents-data-layer-model.drawio)
 
 **Collect Layer**: Raw JSONL batches from Lambda batching function
-**Cleanse Layer**: Append-only Parquet tables with full event history (enabled by `partition_append: true`)
+**Cleanse Layer**: Append-only Parquet tables with full event history (enabled by `cleanse_partition_append: true`)
 **Consume Layer**: Current-state tables with ROW_NUMBER() deduplication
+
+### Why This Design?
+
+The 3-layer architecture with append-only cleanse and deduplicated consume serves distinct analytical needs across insurance operations:
+
+#### Claims Adjusters → Consume Layer (Current State)
+**Need**: Daily claim management requires the latest status of each claim for assignment, processing, and customer communication.
+**Why Consume**: Single row per claim with current claimstate, assigneduser, faultrating. No need to sort through historical state transitions.
+**Query Pattern**: `WHERE claimstate = 'open' AND assigneduser = 'John Adjuster'`
+
+#### Finance Teams → Consume Layer (Aggregated Views)
+**Need**: Payment reporting, reserve analysis, and financial reconciliation require current balances and cleared payment totals.
+**Why Consume**: Can JOIN claims + payments tables for complete financial picture without duplicate payment records.
+**Query Pattern**: `SUM(payment_amount) WHERE paymentstatus = 'cleared' GROUP BY claimnumber`
+
+#### Actuaries → Cleanse Layer (Full Event History)
+**Need**: Loss development triangles require every state transition to calculate reserve adequacy and premium pricing models.
+**Why Cleanse**: Complete chronological sequence of claim events (open → assigned → investigated → closed) with exact timestamps.
+**Query Pattern**: `WHERE claimnumber = 'CLM-123' ORDER BY reporteddate` to analyze claim lifecycle patterns
+
+#### Regulators → Cleanse Layer (Audit Trail)
+**Need**: Compliance reporting requires immutable record of every change with no data loss for regulatory examinations.
+**Why Cleanse**: Full audit trail preserved; can demonstrate when/how claim decisions were made and by whom.
+**Query Pattern**: Event-level analysis with complete data lineage and user attribution
+
+#### Executives → Consume Layer (Business Intelligence)
+**Need**: Dashboard metrics, trend analysis, and KPI reporting require consistent snapshots for period-over-period comparisons.
+**Why Consume**: Clean, deduplicated data optimized for aggregation without concern for event-level complexity.
+**Query Pattern**: `GROUP BY lobcode, losslocation_statecode, month` for geographic and line-of-business trending
+
+#### Data Engineers → Collect Layer (Debugging)
+**Need**: Root cause analysis for data quality issues requires access to original Guidewire event payloads.
+**Why Collect**: Raw JSONL preserves complete original structure for troubleshooting schema mapping or transformation issues.
+
+This separation ensures each stakeholder gets data optimized for their analytical workflows without compromising others' needs.
 
 ### Event Type Classification
 
@@ -544,52 +579,150 @@ SELECT COUNT(*) as unique_claims FROM gwclaimcenter_consume.claims;
 
 This enhancement would simplify the consume layer logic while maintaining the same current-state semantics.
 
-## Extending the Integration
+## Customization and Extensions
 
-### Adding New Event Types
+### For Business Users
 
-To support additional Guidewire event types (e.g., `ReserveCreated`):
+#### Cost Optimization Use Cases
 
-1. **Update event routing** in `lambda_handler.py`:
+**Development Environment Setup:**
+```python
+# In lib/configuration.py:
+DEV: {
+    GUIDEWIRE_LAMBDA_MEMORY: 256,         # Minimum viable memory
+    GUIDEWIRE_LAMBDA_BATCH_SIZE: 50,      # Smaller batches for cost
+    GUIDEWIRE_GLUE_WORKERS_STANDARD: 10,  # Fewer workers
+    GUIDEWIRE_GLUE_WORKERS_BULK: 25,      # Reduced bulk migration capacity
+}
+```
+
+**Production Cost Control:**
+```python
+# In lib/configuration.py:
+PROD: {
+    GUIDEWIRE_LAMBDA_MEMORY: 1024,        # Balanced performance vs cost
+    GUIDEWIRE_LAMBDA_BATCH_SIZE: 200,     # Larger batches for efficiency
+    GUIDEWIRE_LAMBDA_CONCURRENCY: 15,     # Moderate surge capacity
+}
+```
+
+#### Multi-Environment Management
+
+**Selective Environment Deployment:**
+```python
+# Enable only where needed
+DEV: { ENABLE_GUIDEWIRE_APPEVENTS: True },   # For testing
+TEST: { ENABLE_GUIDEWIRE_APPEVENTS: False }, # Skip test environment
+PROD: { ENABLE_GUIDEWIRE_APPEVENTS: True },  # Production deployment
+```
+
+### For Operations Teams
+
+#### Surge Preparation Use Cases
+
+**CAT Event Readiness:**
+```python
+# High-surge configuration for catastrophic events
+PROD: {
+    GUIDEWIRE_LAMBDA_MEMORY: 2048,        # Maximum memory for speed
+    GUIDEWIRE_LAMBDA_CONCURRENCY: 25,     # High concurrency limit
+    GUIDEWIRE_LAMBDA_BATCH_SIZE: 500,     # Large batches
+    GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 1800, # 30-min visibility for large batches
+}
+```
+
+**Performance Monitoring Adjustments:**
+- **Lambda memory**: Monitor CloudWatch memory utilization; increase if consistently above 80%
+- **SQS visibility timeout**: Must be ≥ Lambda timeout to prevent duplicate processing
+- **Glue workers**: Increase for faster processing during peak periods; decrease for cost optimization
+
+#### Data Retention Management
+
+**DLQ and SQS Retention:**
+```python
+# Extend retention for compliance environments
+PROD: {
+    GUIDEWIRE_SQS_RETENTION_DAYS: 14,      # Maximum SQS retention
+    GUIDEWIRE_DLQ_RETENTION_DAYS: 14,      # Match main queue retention
+}
+```
+
+### For Developers
+
+#### Extension Use Cases
+
+**Adding New Guidewire Event Types:**
+
+To support additional event types (e.g., `ReserveCreated`, `DocumentAdded`):
+
+1. **Update event classification** in `lambda_handler.py`:
    ```python
    EVENT_TYPE_ROUTING = {
        # existing types...
        'ReserveCreated': 'Reserves',
+       'DocumentAdded': 'Documents',
    }
    ```
 
-2. **Add stringify fields**:
+1. **Configure stringify fields** for new table types:
    ```python
    STRINGIFY_FIELDS = {
        # existing tables...
        'Reserves': ['lineItems', 'exposure', 'coverage'],
+       'Documents': ['attachments', 'metadata'],
    }
    ```
 
-3. **Create InsuranceLake configuration files**:
+1. **Create InsuranceLake configuration files**:
    - `transformation-spec/GWClaimCenter-Reserves.csv`
    - `transformation-spec/GWClaimCenter-Reserves.json`
    - `dq-rules/dq-GWClaimCenter-Reserves.json`
    - `transformation-sql/spark-GWClaimCenter-Reserves.sql`
 
-4. **Deploy**: `ENV=prod cdk deploy`
+1. **Deploy updated configuration**: `ENV=prod cdk deploy`
 
-### Performance Tuning
+**Adding New Guidewire Products:**
 
-**Lambda Optimization:**
-- Increase memory for faster S3 reads during high-volume periods
-- Adjust batch_size vs concurrency based on event size and frequency
-- Monitor memory utilization and adjust accordingly
+To integrate PolicyCenter or BillingCenter AppEvents:
 
-**Glue Job Optimization:**
-- Standard workers: Balance cost vs processing speed for regular batches
-- Bulk workers: Optimize for one-time migration scenarios
-- Consider G.2X worker type for memory-intensive transformations
+1. **Create separate Lambda and SQS** for each product (isolation and independent scaling)
+1. **Use different source system prefixes**: `GWPolicyCenter/Policies/`, `GWBillingCenter/Invoices/`
+1. **Configure product-specific event routing** and stringify field lists
+1. **Deploy additional stacks** with product-specific configuration
 
-**SQS Tuning:**
-- Visibility timeout must be ≥ Lambda timeout to prevent duplicate processing
-- Adjust retention periods based on acceptable data loss risk
-- Monitor DLQ depth for systematic failures
+#### Advanced Customization Use Cases
+
+**Custom Data Processing Logic:**
+
+Extend transform specifications for business-specific enrichment:
+
+```json
+{
+  "transform_spec": {
+    "lookup": [
+      {
+        "field": "territory_name",
+        "source": "losslocation_statecode",
+        "lookup": "TerritoryMapping",
+        "nomatch": "Unknown Territory"
+      }
+    ],
+    "columnfromcolumn": [
+      {
+        "field": "claim_age_days",
+        "source": "lossdate",
+        "pattern": "datediff(current_date(), '{}')"
+      }
+    ]
+  }
+}
+```
+
+**Performance Optimization for High-Volume:**
+- **Glue worker scaling**: Use G.2X worker type for memory-intensive transformations
+- **Partition strategy**: Consider hourly partitions for extremely high-volume scenarios
+- **Batch size tuning**: Balance Lambda invocation frequency vs processing efficiency
+- **Concurrent execution limits**: Adjust Glue max_concurrent_runs based on cluster capacity
 
 ---
 
