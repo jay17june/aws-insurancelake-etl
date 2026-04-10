@@ -462,66 +462,67 @@ max_concurrent_runs=1,    # One-time use, not concurrent
 | **Consume has duplicate rows** | Dedup key incorrect | Check PARTITION BY clause in consume SQL |
 | **Pipeline not triggering** | SQS event source mapping disabled | Check Lambda event sources in console |
 
-### Debug Commands
+### Debugging via AWS Console
 
 **Check Lambda configuration:**
-```bash
-aws lambda get-function --function-name dev-insurancelake-gw-appevents-batching
-aws lambda list-event-source-mappings --function-name dev-insurancelake-gw-appevents-batching
-```
+
+1. Navigate to the AWS Lambda console
+1. Find the `dev-insurancelake-gw-appevents-batching` function
+1. Verify event source mapping is configured with correct batch size and concurrency
+1. Check function memory and timeout settings match configuration
 
 **Monitor Glue job execution:**
-```bash
-aws glue get-job-runs --job-name dev-insurancelake-collect-to-cleanse-job
-aws logs tail /aws-glue/jobs/output --since 1h
-```
 
-**Check data accumulation:**
+1. Navigate to the AWS Glue console
+1. Select Jobs and find `dev-insurancelake-collect-to-cleanse-job`
+1. Check recent job runs for status and duration
+1. Navigate to CloudWatch Logs for detailed job output
+
+**Verify data accumulation:**
+
+Navigate to the Athena console and run validation queries:
+
 ```sql
--- Verify cleanse accumulation (should grow)
+-- Verify cleanse accumulation (should grow with each batch)
 SELECT COUNT(*) as total_events FROM gwclaimcenter.claims;
 
--- Verify consume deduplication (unique entities)
+-- Verify consume deduplication (unique entities only)
 SELECT COUNT(*) as unique_claims FROM gwclaimcenter_consume.claims;
 ```
 
-## Testing
+## Deployment Validation
 
-### Integration Tests
+### Integration Testing
 
-**End-to-End Test:**
-```bash
-# 1. Upload test event
-aws s3 cp test-claim.json s3://gw-bucket/cc:99999/cc:99999-ClaimCreated-20260409T120000Z-001.json
+**End-to-End Validation:**
 
-# 2. Monitor Lambda execution (should trigger within 30s)
-aws logs tail /aws/lambda/dev-insurancelake-gw-appevents-batching --since 2m
+1. Upload a test event to your Guidewire AppEvents S3 bucket using the AWS Console.
 
-# 3. Verify pipeline execution
-aws stepfunctions list-executions --state-machine-arn <arn> --max-results 3
+1. Navigate to the CloudWatch console and check the Lambda function logs.
 
-# 4. Query results
-aws athena start-query-execution --query-string "SELECT * FROM gwclaimcenter_consume.claims WHERE claimnumber = '000-00-099999'"
-```
+1. Verify Lambda execution triggered within 30 seconds (auto-scaling behavior).
 
-### Surge Testing
+1. Navigate to the Step Functions console to verify pipeline execution.
+
+1. Check that the execution completed successfully.
+
+1. Navigate to the Athena console and run a verification query:
+
+    ```sql
+    SELECT * FROM gwclaimcenter_consume.claims WHERE claimnumber = '000-00-099999';
+    ```
+
+### Surge Resilience Testing
 
 **Simulate CAT Event:**
-```bash
-# Upload 100 events in parallel
-for i in $(seq 1 100); do
-  aws s3 cp test-event.json "s3://gw-bucket/cc:$i/cc:$i-ClaimCreated-20260409T120000Z-$i.json" &
-done
-wait
 
-# Monitor Lambda concurrency
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/Lambda --metric-name ConcurrentExecutions \
-  --dimensions Name=FunctionName,Value=dev-insurancelake-gw-appevents-batching \
-  --start-time $(date -u -v-10M '+%Y-%m-%dT%H:%M:%SZ') \
-  --end-time $(date -u '+%Y-%m-%dT%H:%M:%SZ') \
-  --period 60 --statistics Maximum
-```
+1. Navigate to the S3 console and upload multiple test events simultaneously.
+
+1. Navigate to the CloudWatch console and check Lambda metrics.
+
+1. Verify concurrent Lambda executions occurred (up to 10 instances).
+
+1. Monitor the `ConcurrentExecutions` metric in CloudWatch to confirm auto-scaling behavior.
 
 ## Future Enhancements
 

@@ -59,61 +59,56 @@ The integration processes Guidewire AppEvents through an auto-scaling pipeline:
 
 ### Prerequisites
 
-- AWS account with administrator access
+{: .important}
+The instructions in the following sections assume you have completed the [Quickstart guide](quickstart.md) and have InsuranceLake infrastructure and ETL pipelines deployed.
+
+Additional prerequisites:
 - Guidewire ClaimCenter configured to send AppEvents to S3
-- AWS CLI and CDK v2 installed
+- S3 bucket for Guidewire AppEvents already created
 
 ### Deployment Steps
 
-**Step 1: Deploy AWS InsuranceLake Infrastructure**
-```bash
-git clone https://github.com/aws-solutions-library-samples/aws-insurancelake-infrastructure
-cd aws-insurancelake-infrastructure
-# Configure region and account in lib/configuration.py
-cdk deploy --all
-```
+1. Configure the integration by editing `lib/configuration.py` to customize for your environment:
 
-**Step 2: Configure the Integration**
+    ```python
+    # Update the target environment settings:
+    PROD: {
+        ACCOUNT_ID: active_account_id,
+        REGION: 'us-east-1',  # Set your AWS region
+        LINEAGE: True,
+        CODE_BRANCH: 'main',
+        # Guidewire AppEvents Integration Settings
+        ENABLE_GUIDEWIRE_APPEVENTS: True,  # Set to False to disable
+        GUIDEWIRE_APPEVENTS_BUCKET: 'your-gw-appevents-bucket',
+        GUIDEWIRE_LAMBDA_MEMORY: 1024,
+        GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+        GUIDEWIRE_LAMBDA_BATCH_SIZE: 200,
+        GUIDEWIRE_LAMBDA_CONCURRENCY: 20,
+        GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 1200,
+        GUIDEWIRE_GLUE_WORKERS_STANDARD: 50,
+        GUIDEWIRE_GLUE_WORKERS_BULK: 100,
+    },
+    ```
 
-Edit `lib/configuration.py` to customize the integration for your environment:
+1. Deploy the Guidewire AppEvents integration stack:
 
-```python
-# In lib/configuration.py, update the environment settings:
-PROD: {
-    ACCOUNT_ID: active_account_id,
-    REGION: 'us-east-1',  # Set your AWS region
-    LINEAGE: True,
-    CODE_BRANCH: 'main',
-    # Guidewire AppEvents Integration Settings
-    ENABLE_GUIDEWIRE_APPEVENTS: True,  # Set to False to disable
-    GUIDEWIRE_APPEVENTS_BUCKET: 'your-gw-appevents-bucket',  # Your bucket name
-    GUIDEWIRE_LAMBDA_MEMORY: 1024,     # Lambda memory (128-10240 MB)
-    GUIDEWIRE_LAMBDA_TIMEOUT: 15,      # Lambda timeout (1-15 minutes)
-    GUIDEWIRE_LAMBDA_BATCH_SIZE: 200,  # SQS messages per invocation
-    GUIDEWIRE_LAMBDA_CONCURRENCY: 20,  # Max parallel Lambdas
-    GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 1200,  # Must be >= Lambda timeout * 60
-    GUIDEWIRE_GLUE_WORKERS_STANDARD: 50,     # Regular ETL workers
-    GUIDEWIRE_GLUE_WORKERS_BULK: 100,        # Bulk migration workers
-},
-```
+    ```bash
+    cdk deploy Prod-InsuranceLakeEtlPipeline/Prod/InsuranceLakeEtlGuidewireAppEvents
+    ```
 
-**Step 3: Deploy the Integration**
-```bash
-git clone https://github.com/jay17june/aws-insurancelake-etl
-cd aws-insurancelake-etl
-git checkout feature/guidewire-appevents-integration
+1. Review and accept IAM credential creation for the Guidewire AppEvents stack.
 
-# Deploy to your target environment
-ENV=prod cdk deploy
-```
+1. Wait for deployment to finish (approximately 3 minutes).
 
-**Step 4: Verify Data Flow**
-```bash
-# Check that events are flowing
-aws athena start-query-execution \
-  --query-string "SELECT COUNT(*) FROM gwclaimcenter_consume.claims" \
-  --work-group insurancelake
-```
+1. Verify the pipeline deployed successfully by navigating to the AWS CloudFormation console.
+
+1. Verify data flow by opening the Amazon Athena console.
+
+1. In Athena, run the following query to check for claims data:
+
+    ```sql
+    SELECT COUNT(*) FROM gwclaimcenter_consume.claims;
+    ```
 
 ## Configuration Options
 
@@ -199,41 +194,45 @@ ORDER BY claim_count DESC;
 ### Data Migrations
 For one-time bulk loads of 1M+ historical events, use the dedicated bulk migration Glue job:
 
-```bash
-aws glue start-job-run \
-  --job-name dev-insurancelake-gw-bulk-migration-job \
-  --arguments '{"--source_path":"s3://your-gw-bucket/"}' \
-  --region us-east-1
-```
+1. Navigate to the AWS Glue console
+1. Select Jobs and find `dev-insurancelake-gw-bulk-migration-job`
+1. Click "Run job" and configure the job parameters:
+   - `--source_path`: `s3://your-gw-bucket/`
+   - `--target_bucket`: (auto-configured)
+   - `--source_system`: `GWClaimCenter`
+1. Monitor job progress in the console
 
 **Performance**: 1M events processed in 30-60 minutes using Spark's native parallelism.
 
 ## Cost
 
-### Quick Summary
+### Cost Estimate
 
-For processing typical Guidewire ClaimCenter AppEvents volume (1,000 events per day) in production, **your monthly AWS cost will be approximately $285**.
+For processing typical Guidewire ClaimCenter AppEvents volume in production, **your monthly AWS cost will be approximately $285 USD**. This estimate assumes:
 
-### Cost Breakdown
+- 1,000 mixed AppEvents per day (Claims, Exposures, Payments)
+- Standard AWS Glue auto-scaling configuration (25-50 workers)
+- Regular Athena queries for reporting and analytics (5 queries/day, 1GB scanned each)
+- US East (Ohio) Region pricing as of April 2026
 
-| AWS Service | Purpose | Estimated Monthly Cost |
-|-------------|---------|----------------------|
-| **AWS Glue** | ETL processing (Collect-Cleanse-Consume) | $275 |
-| **AWS Lambda** | Event batching and routing | $0.01 |
-| **Amazon S3** | Data lake storage (all layers) | $0.20 |
-| **AWS Step Functions** | Pipeline orchestration | $2.14 |
-| **Amazon DynamoDB** | Job audit and data lineage | $1.50 |
-| **Other Services** | SQS, Athena, KMS, CloudWatch | $6-10 |
-| | **Total** | **~$285** |
+Costs scale primarily with event volume. Higher volumes increase AWS Glue DPU-hours but benefit from batch processing efficiency.
 
-### Cost Optimization
+### Cost Table
 
-**Adjust performance settings** to balance cost with requirements:
-- Higher Lambda memory/concurrency: Better surge handling, higher cost
-- More Glue workers: Faster processing, higher cost
-- Smaller batch sizes: More frequent processing, higher cost
+| AWS service | Dimensions | Cost [USD] |
+|-------------|-----------|------------|
+| AWS Glue | $0.44 per DPU-Hour | $275.00 |
+| AWS Lambda | $0.20 per 1M requests | $0.01 |
+| Amazon S3 | $0.023 per GB-month | $0.20 |
+| AWS Step Functions | $0.025 per 1K state transitions | $2.14 |
+| Amazon DynamoDB | On-demand requests | $1.50 |
+| Amazon SQS | $0.40 per 1M requests | $0.00 |
+| Amazon Athena | $5.00 per TB scanned | $1.50 |
+| AWS KMS | $1.00 per key per month | $1.00 |
+| Amazon CloudWatch | $0.50 per GB ingested | $1.00 |
+| **Total** | | **$282.35** |
 
-**Use AWS Cost Explorer** to create budgets and track actual expenses.
+*Pricing as of April 9, 2026, US East (Ohio) Region. For current pricing, refer to [AWS Pricing](https://aws.amazon.com/pricing/).*
 
 ## Next Steps
 
