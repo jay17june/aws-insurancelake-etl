@@ -302,6 +302,41 @@ Example bucket layout with partition value overrides follows:
 {: .note }
 If you've made changes to the Collect to Cleanse AWS Glue job in order to support multi-file Parquet data sets, the partition value override functionality may be disabled. More details can be found in the [Handling Multi-file Data Sets Documentation](file_formats.md#handling-multi-file-data-sets).
 
+## Partition Append Mode
+
+For incremental event data sources (such as Guidewire AppEvents), InsuranceLake supports **partition append mode** that accumulates data within partitions instead of overwriting them.
+
+**Standard Behavior** (full-load sources):
+```json
+{
+  "input_spec": {
+    "cleanse_partition_append": false  // Default: clear partition before write
+  }
+}
+```
+Each pipeline run calls `clear_partition()` to purge existing data for that date, then writes new data. This ensures clean, consistent snapshots for batch-loaded sources.
+
+**Append-Only Behavior** (event sources):
+```json
+{
+  "input_spec": {
+    "cleanse_partition_append": true   // Skip clear_partition(), accumulate data
+  }
+}
+```
+Each pipeline run appends new Parquet files to the existing daily partition. Multiple batches per day coexist as separate files within `year=YYYY/month=MM/day=DD/`.
+
+**Use Cases for Partition Append:**
+- Event streams (Guidewire AppEvents, Kafka topics)
+- API polling data that arrives in increments
+- IoT sensor data with continuous feeds
+- Any source where you need complete historical event preservation
+
+**Implementation**: The `cleanse_partition_append` flag modifies the Collect-to-Cleanse Glue job behavior in `etl_collect_to_cleanse.py`. When enabled, the job skips calling `clear_partition()` and uses Spark's append mode to add data to existing partitions.
+
+{: .important }
+When using partition append mode, ensure your Consume layer SQL handles deduplication appropriately. The cleanse layer will contain multiple events per entity, so the consume SQL should use `ROW_NUMBER() OVER (...)` to select the latest event per entity. See the [Guidewire AppEvents Developer Guide](guidewire_appevents_developer_guide.md#consume-sql-deduplication) for examples.
+
 Other methods to override partition values are covered in other sections of the documentation:
 
 * Using the [Step Functions New Execution capability](#execute-pipeline-without-upload), a pipeline maintainer can repeat a previously completed workflow, skipping the file upload step, and override execution parameters such as partition year, month, day, and source file S3 location.

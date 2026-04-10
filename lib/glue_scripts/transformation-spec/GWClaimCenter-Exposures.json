@@ -3,7 +3,7 @@
         "table_description": "Guidewire ClaimCenter AppEvents - Exposures",
         "strict_schema_mapping": false,
         "allow_schema_change": "evolve",
-        "partition_append": true,
+        "cleanse_partition_append": true,
         "json": {
             "multiline": false
         }
