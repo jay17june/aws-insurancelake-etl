@@ -1,37 +1,10 @@
--- Current-state payments: deduplicate by paymentid, keeping the most recent event
-SELECT
-    paymentid
-  , claimid
-  , claimnumber
-  , description
-  , lobcode
-  , losstype
-  , segment
-  , policynumber
-  , costtype
-  , costcategory
-  , coverage
-  , paymenttype
-  , paymentstatus
-  , currency
-  , checknumber
-  , createtime
-  , issuedate
-  , validationlevel
-  , sourcesystem
-  , eventtype
-  , execution_id
-  , year
-  , month
-  , day
-
+-- Dynamic schema consume SQL for payments: select all available fields
+SELECT *
 FROM (
     SELECT *, ROW_NUMBER() OVER (
-        PARTITION BY paymentid
-        ORDER BY createtime DESC
+        PARTITION BY COALESCE(id, paymentid, claimid)  -- Try multiple ID fields
+        ORDER BY COALESCE(createtime, issuedate, current_timestamp()) DESC
     ) as rn
     FROM gwclaimcenter.payments
 )
 WHERE rn = 1
-
-ORDER BY createtime DESC, claimnumber ASC

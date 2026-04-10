@@ -23,19 +23,6 @@
 
         "changetype": {},
 
-        "combinecolumns": [
-            {
-                "field": "losslocation_full",
-                "format": "{}, {}, {} {}",
-                "source_columns": [
-                    "losslocation_address1",
-                    "losslocation_city",
-                    "losslocation_statecode",
-                    "losslocation_postalcode"
-                ]
-            }
-        ],
-
         "literal": {
             "sourcesystem": "GWClaimCenter",
             "eventtype": "AppEvents"

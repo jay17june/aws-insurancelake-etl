@@ -114,68 +114,11 @@ def lambda_handler(event: dict, _) -> dict:
                 # keys (e.g., cc:17499) that are incompatible with Hive/Parquet
                 event_data = json.loads(content)
 
-                # Ensure all expected nested collections exist (add empty if missing)
+                # Stringify nested collections only (no field defaults needed)
+                # InsuranceLake will handle missing fields dynamically
                 for field in STRINGIFY_FIELDS.get(table_name, []):
-                    if field not in event_data:
-                        event_data[field] = {}  # Add empty object for missing fields
-                    if not isinstance(event_data[field], str):
+                    if field in event_data and not isinstance(event_data[field], str):
                         event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
-
-                # Ensure common enum fields exist for schema mapping (add empty struct if missing)
-                COMMON_ENUM_FIELDS = [
-                    'lossCause', 'faultRating', 'howReported', 'reportedByType',
-                    'assignmentStatus', 'validationLevel', 'strategy', 'segment',
-                    'flagged', 'jurisdiction'
-                ]
-                for field in COMMON_ENUM_FIELDS:
-                    if field not in event_data:
-                        event_data[field] = {'code': 'unknown', 'name': 'Unknown'}
-
-                # Ensure complex objects exist with expected sub-fields (schema mapping extracts these)
-                COMPLEX_OBJECT_DEFAULTS = {
-                    'policy': {
-                        'producerCode': 'unknown',
-                        'currency': {'code': 'USD', 'name': 'US Dollar'}
-                    },
-                    'lossLocation': {
-                        'addressLine1': 'Unknown',
-                        'city': 'Unknown',
-                        'state': {'code': 'UNK', 'name': 'Unknown'},
-                        'postalCode': '00000',
-                        'country': 'US'
-                    },
-                    'insured': {
-                        'displayName': 'Unknown Insured',
-                        'id': 'unknown'
-                    },
-                    'mainContact': {
-                        'displayName': 'Unknown Contact',
-                        'id': 'unknown'
-                    },
-                    'reporter': {
-                        'displayName': 'Unknown Reporter',
-                        'id': 'unknown'
-                    },
-                    'assignedUser': {
-                        'displayName': 'Unassigned',
-                        'id': 'unknown'
-                    },
-                    'assignedGroup': {
-                        'displayName': 'Unassigned',
-                        'id': 'unknown'
-                    },
-                    'assignedByUser': {
-                        'displayName': 'System',
-                        'id': 'system'
-                    }
-                }
-
-                for obj_name, defaults in COMPLEX_OBJECT_DEFAULTS.items():
-                    if obj_name not in event_data:
-                        event_data[obj_name] = {}
-                    for field, default_value in defaults.items():
-                        if field not in event_data[obj_name]:
-                            event_data[obj_name][field] = default_value
 
                 single_line = json.dumps(event_data, separators=(',', ':'))
                 events_by_table[table_name].append(single_line)

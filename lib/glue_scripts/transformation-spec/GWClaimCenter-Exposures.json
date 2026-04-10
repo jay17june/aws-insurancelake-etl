@@ -10,17 +10,6 @@
     },
 
     "transform_spec": {
-        "date": [
-            {
-                "field": "lossdate",
-                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-            },
-            {
-                "field": "reporteddate",
-                "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-            }
-        ],
-
         "literal": {
             "sourcesystem": "GWClaimCenter",
             "eventtype": "Exposure"

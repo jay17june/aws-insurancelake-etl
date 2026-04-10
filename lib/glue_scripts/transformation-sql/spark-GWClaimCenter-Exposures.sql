@@ -1,35 +1,10 @@
--- Current-state exposures: deduplicate by claimid, keeping the most recent event
-SELECT
-    claimid
-  , claimnumber
-  , claimstate
-  , lobcode
-  , lossdate
-  , losstype
-  , losscause
-  , reporteddate
-  , reportedbytype
-  , description
-  , segment
-  , flagged
-  , faultrating
-  , incidentonly
-  , assignmentstatus
-  , policynumber
-  , sourcesystem
-  , eventtype
-  , execution_id
-  , year
-  , month
-  , day
-
+-- Dynamic schema consume SQL for exposures: select all available fields
+SELECT *
 FROM (
     SELECT *, ROW_NUMBER() OVER (
-        PARTITION BY claimid
-        ORDER BY reporteddate DESC
+        PARTITION BY COALESCE(claimnumber, id)  -- Use claimnumber or fallback to id
+        ORDER BY COALESCE(reporteddate, lossdate, current_timestamp()) DESC
     ) as rn
     FROM gwclaimcenter.exposures
 )
 WHERE rn = 1
-
-ORDER BY lossdate DESC, claimnumber ASC

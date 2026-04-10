@@ -1,40 +1,13 @@
--- Current-state claims: deduplicate by claimnumber, keeping the most recent event
-SELECT
-    claimid
-  , claimnumber
-  , claimstate
-  , lobcode
-  , lossdate
-  , losstype
-  , losscause
-  , reporteddate
-  , reportedbytype
-  , datediff(reporteddate, lossdate) as days_to_report
-  , description
-  , segment
-  , flagged
-  , faultrating
-  , howreported
-  , incidentonly
-  , jurisdiction
-  , validationlevel
-  , assignmentstatus
-  , policynumber
-  , strategycode
-  , sourcesystem
-  , eventtype
-  , execution_id
-  , year
-  , month
-  , day
-
+-- Dynamic schema consume SQL: select all available fields
+-- InsuranceLake auto-cleans column names, so reference the cleaned versions
+SELECT *
 FROM (
     SELECT *, ROW_NUMBER() OVER (
-        PARTITION BY claimnumber
-        ORDER BY reporteddate DESC
+        PARTITION BY claimnumber  -- Auto-cleaned from claimNumber
+        ORDER BY reporteddate DESC  -- Auto-cleaned from reportedDate
     ) as rn
     FROM gwclaimcenter.claims
 )
 WHERE rn = 1
 
-ORDER BY lossdate DESC, claimnumber ASC
+ORDER BY COALESCE(lossdate, date('1900-01-01')) DESC, claimnumber ASC
