@@ -1,39 +1,36 @@
 -- Athena views for Guidewire ClaimCenter consume (gold copy) layer
 -- These views flatten nested JSON columns into queryable tables
--- Run each CREATE VIEW statement individually in the Athena console
 --
--- Prerequisites: The consume table gwclaimcenter_consume.claims must exist
--- and contain rows with the referenced nested columns (activities, exposures, etc.)
--- Check available columns: DESCRIBE gwclaimcenter_consume.claims;
+-- ⚠️  IMPORTANT: Only create views for columns that exist in your table
+-- Check available columns first: DESCRIBE gwclaimcenter_consume.claims;
+--
+-- Create each view individually based on what nested JSON columns are available:
 
 
--- View 1: Flattened claim activities
--- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_activities WHERE claimnumber = '000-00-066666'
-CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_activities AS
+-- View 1: Claim Contacts (if 'contacts' column exists)
+-- Prerequisites: gwclaimcenter_consume.claims must have 'contacts' column
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_contacts AS
 SELECT
     c.claimnumber
   , c.id as claimid
-  , c.lobcode
-  , c.lossdate
   , c.policynumber
-  , activity_key as activity_id
-  , json_extract_scalar(activity_value, '$.subject') as activity_subject
-  , json_extract_scalar(activity_value, '$.description') as activity_description
-  , json_extract_scalar(activity_value, '$.status') as activity_status
-  , json_extract_scalar(activity_value, '$.priority') as activity_priority
-  , json_extract_scalar(activity_value, '$.dueDate') as activity_duedate
-  , json_extract_scalar(activity_value, '$.assignedUser.displayName') as activity_assigneduser
+  , contact_key as contact_id
+  , json_extract_scalar(contact_value, '$.displayName') as contact_name
+  , json_extract_scalar(contact_value, '$.contactType') as contact_type
+  , json_extract_scalar(contact_value, '$.primaryAddress.city') as contact_city
+  , json_extract_scalar(contact_value, '$.primaryAddress.state.code') as contact_state
+  , json_extract_scalar(contact_value, '$.emailAddress1') as contact_email
   , c.year
   , c.month
   , c.day
 FROM
     gwclaimcenter_consume.claims c
-CROSS JOIN UNNEST(cast(json_parse(c.activities) as map(varchar, json))) as t(activity_key, activity_value)
-WHERE c.activities IS NOT NULL AND c.activities != '{}';
+CROSS JOIN UNNEST(cast(json_parse(c.contacts) as map(varchar, json))) as t(contact_key, contact_value)
+WHERE c.contacts IS NOT NULL AND c.contacts != '{}';
 
 
--- View 2: Flattened claim exposures
--- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_exposures WHERE claimnumber = '000-00-066666'
+-- View 2: Claim Exposures (if 'exposures' column exists)
+-- Prerequisites: gwclaimcenter_consume.claims must have 'exposures' column
 CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_exposures AS
 SELECT
     c.claimnumber
@@ -55,47 +52,78 @@ CROSS JOIN UNNEST(cast(json_parse(c.exposures) as map(varchar, json))) as t(expo
 WHERE c.exposures IS NOT NULL AND c.exposures != '{}';
 
 
--- View 3: Flattened claim reserves
--- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_reserves WHERE claimnumber = '000-00-066666'
-CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_reserves AS
+-- View 3: Policy Addresses (if 'policyaddresses' column exists)
+-- Prerequisites: gwclaimcenter_consume.claims must have 'policyaddresses' column
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_policy_addresses AS
+SELECT
+    c.claimnumber
+  , c.id as claimid
+  , c.policynumber
+  , json_extract_scalar(address_value, '$.addressLine1') as address_line1
+  , json_extract_scalar(address_value, '$.city') as city
+  , json_extract_scalar(address_value, '$.state.code') as state_code
+  , json_extract_scalar(address_value, '$.postalCode') as postal_code
+  , c.year
+  , c.month
+  , c.day
+FROM
+    gwclaimcenter_consume.claims c
+CROSS JOIN UNNEST(cast(json_parse(c.policyaddresses) as array(json))) as t(address_value)
+WHERE c.policyaddresses IS NOT NULL AND c.policyaddresses != '{}';
+
+
+-- View 4: Vehicle Incidents (if 'vehicle-incidents' column exists)
+-- Prerequisites: gwclaimcenter_consume.claims must have 'vehicle-incidents' column
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_vehicle_incidents AS
 SELECT
     c.claimnumber
   , c.id as claimid
   , c.lobcode
-  , c.policynumber
-  , reserve_key as reserve_id
-  , json_extract_scalar(reserve_value, '$.costType') as cost_type
-  , json_extract_scalar(reserve_value, '$.costCategory') as cost_category
-  , json_extract_scalar(reserve_value, '$.exposure.displayName') as exposure_name
-  , json_extract_scalar(reserve_value, '$.reserveLine.displayName') as reserve_line
-  , json_extract_scalar(reserve_value, '$.reservingAmount.amount') as reserving_amount
-  , json_extract_scalar(reserve_value, '$.status') as reserve_status
+  , incident_key as incident_id
+  , json_extract_scalar(incident_value, '$.lossParty') as loss_party
+  , json_extract_scalar(incident_value, '$.vehicle.make') as vehicle_make
+  , json_extract_scalar(incident_value, '$.vehicle.model') as vehicle_model
+  , json_extract_scalar(incident_value, '$.vehicle.year') as vehicle_year
+  , json_extract_scalar(incident_value, '$.vehicle.vin') as vehicle_vin
   , c.year
   , c.month
   , c.day
+FROM
+    gwclaimcenter_consume.claims c
+CROSS JOIN UNNEST(cast(json_parse(c."vehicle-incidents") as map(varchar, json))) as t(incident_key, incident_value)
+WHERE c."vehicle-incidents" IS NOT NULL AND c."vehicle-incidents" != '{}';
+
+
+-- FUTURE VIEWS: Create these when data with these fields arrives
+--
+-- View 5: Claim Activities (when 'activities' column exists)
+-- Uncomment and run when you have processed events containing activities:
+/*
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_activities AS
+SELECT
+    c.claimnumber
+  , c.id as claimid
+  , activity_key as activity_id
+  , json_extract_scalar(activity_value, '$.subject') as activity_subject
+  , json_extract_scalar(activity_value, '$.status') as activity_status
+FROM
+    gwclaimcenter_consume.claims c
+CROSS JOIN UNNEST(cast(json_parse(c.activities) as map(varchar, json))) as t(activity_key, activity_value)
+WHERE c.activities IS NOT NULL AND c.activities != '{}';
+*/
+
+-- View 6: Claim Reserves (when 'reserves' column exists)
+-- Uncomment and run when you have processed events containing reserves:
+/*
+CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_reserves AS
+SELECT
+    c.claimnumber
+  , c.id as claimid
+  , reserve_key as reserve_id
+  , json_extract_scalar(reserve_value, '$.costType') as cost_type
+  , json_extract_scalar(reserve_value, '$.reservingAmount.amount') as reserving_amount
 FROM
     gwclaimcenter_consume.claims c
 CROSS JOIN UNNEST(cast(json_parse(c.reserves) as map(varchar, json))) as t(reserve_key, reserve_value)
 WHERE c.reserves IS NOT NULL AND c.reserves != '{}';
-
-
--- View 4: Flattened claim contacts
--- Query: SELECT * FROM gwclaimcenter_consume.vw_claim_contacts WHERE claimnumber = '000-00-066666'
-CREATE OR REPLACE VIEW gwclaimcenter_consume.vw_claim_contacts AS
-SELECT
-    c.claimnumber
-  , c.id as claimid
-  , c.policynumber
-  , contact_key as contact_id
-  , json_extract_scalar(contact_value, '$.displayName') as contact_name
-  , json_extract_scalar(contact_value, '$.contactType') as contact_type
-  , json_extract_scalar(contact_value, '$.primaryAddress.city') as contact_city
-  , json_extract_scalar(contact_value, '$.primaryAddress.state.code') as contact_state
-  , json_extract_scalar(contact_value, '$.emailAddress1') as contact_email
-  , c.year
-  , c.month
-  , c.day
-FROM
-    gwclaimcenter_consume.claims c
-CROSS JOIN UNNEST(cast(json_parse(c.contacts) as map(varchar, json))) as t(contact_key, contact_value)
-WHERE c.contacts IS NOT NULL AND c.contacts != '{}';
+*/
