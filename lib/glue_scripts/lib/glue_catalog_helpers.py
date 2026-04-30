@@ -277,6 +277,20 @@ def upsert_catalog_table(
 
     if check_schema_change(existing_column_schema, schema, allow_schema_change):
         # Schema changes are permissible
+        if allow_schema_change == 'permissive':
+            # Merge schemas: keep all existing columns and add any new ones
+            # This prevents column loss when incremental batches have varying fields
+            existing_names = { col['Name'] for col in existing_column_schema }
+            new_columns = [ col for col in schema if col['Name'] not in existing_names ]
+            if new_columns:
+                merged_schema = existing_column_schema + new_columns
+                print(f'Permissive schema merge: added {len(new_columns)} new columns, '
+                    f'retained {len(existing_column_schema)} existing columns')
+                table_input['StorageDescriptor']['Columns'] = merged_schema
+            else:
+                print(f'Permissive schema merge: no new columns to add, '
+                    f'retaining {len(existing_column_schema)} existing columns')
+                table_input['StorageDescriptor']['Columns'] = existing_column_schema
         print(f'Updating target table schema: {target_database}.{table_name}')
         glue_client.update_table(DatabaseName=target_database, TableInput=table_input)
     else:
