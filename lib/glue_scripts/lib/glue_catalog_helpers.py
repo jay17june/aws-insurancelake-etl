@@ -278,13 +278,17 @@ def upsert_catalog_table(
     if check_schema_change(existing_column_schema, schema, allow_schema_change):
         # Schema changes are permissible
         if allow_schema_change == 'permissive':
-            # Merge schemas: keep all existing columns and add any new ones
+            # Merge schemas using set operations (follows check_schema_change pattern)
             # This prevents column loss when incremental batches have varying fields
-            existing_names = { col['Name'] for col in existing_column_schema }
-            new_columns = [ col for col in schema if col['Name'] not in existing_names ]
-            if new_columns:
-                merged_schema = existing_column_schema + new_columns
-                print(f'Permissive schema merge: added {len(new_columns)} new columns, '
+            existing_schema_map = { field_def['Name']: field_def for field_def in existing_column_schema }
+            existing_schema_set = set(existing_schema_map.keys())
+            new_schema_map = { field_def['Name']: field_def for field_def in schema }
+            new_schema_set = set(new_schema_map.keys())
+
+            added_fields = new_schema_set - existing_schema_set
+            if added_fields:
+                merged_schema = existing_column_schema + [ new_schema_map[name] for name in added_fields ]
+                print(f'Permissive schema merge: added {added_fields}, '
                     f'retained {len(existing_column_schema)} existing columns')
                 table_input['StorageDescriptor']['Columns'] = merged_schema
             else:
