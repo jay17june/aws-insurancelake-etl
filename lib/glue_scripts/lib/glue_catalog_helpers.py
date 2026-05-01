@@ -8,6 +8,7 @@ import os
 import boto3
 import botocore
 from pyspark.context import SparkContext
+from custom_mapping import merge_catalog_schema
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import DoubleType, FloatType, NullType
 from pyspark.sql.functions import col
@@ -278,23 +279,8 @@ def upsert_catalog_table(
     if check_schema_change(existing_column_schema, schema, allow_schema_change):
         # Schema changes are permissible
         if allow_schema_change == 'permissive':
-            # Merge schemas using set operations (follows check_schema_change pattern)
-            # This prevents column loss when incremental batches have varying fields
-            existing_schema_map = { field_def['Name']: field_def for field_def in existing_column_schema }
-            existing_schema_set = set(existing_schema_map.keys())
-            new_schema_map = { field_def['Name']: field_def for field_def in schema }
-            new_schema_set = set(new_schema_map.keys())
-
-            added_fields = new_schema_set - existing_schema_set
-            if added_fields:
-                merged_schema = existing_column_schema + [ new_schema_map[name] for name in added_fields ]
-                print(f'Permissive schema merge: added {added_fields}, '
-                    f'retained {len(existing_column_schema)} existing columns')
-                table_input['StorageDescriptor']['Columns'] = merged_schema
-            else:
-                print(f'Permissive schema merge: no new columns to add, '
-                    f'retaining {len(existing_column_schema)} existing columns')
-                table_input['StorageDescriptor']['Columns'] = existing_column_schema
+            merged_schema = merge_catalog_schema(existing_column_schema, schema)
+            table_input['StorageDescriptor']['Columns'] = merged_schema
         print(f'Updating target table schema: {target_database}.{table_name}')
         glue_client.update_table(DatabaseName=target_database, TableInput=table_input)
         return table_input['StorageDescriptor']['Columns']

@@ -115,6 +115,42 @@ def custommapping(df: DataFrame, field_mapping_list: list, args: dict, lineage, 
     return df.select(select_list)
 
 
+def merge_catalog_schema(existing_schema: list, new_schema: list) -> list:
+    """Merge two Glue Catalog schemas, keeping all existing columns and adding new ones
+
+    Uses set operations following the pattern in check_schema_change().
+    This prevents column loss when incremental batches have varying fields.
+
+    Parameters
+    ----------
+    existing_schema
+        Schema that already exists in the Glue Catalog
+        List of Dict objects containing, at least, elements Name and Type
+    new_schema
+        Incoming (new) data file schema; same format as existing schema
+
+    Returns
+    -------
+    list
+        Merged schema containing all existing columns plus any new columns
+    """
+    existing_schema_map = { field_def['Name']: field_def for field_def in existing_schema }
+    existing_schema_set = set(existing_schema_map.keys())
+    new_schema_map = { field_def['Name']: field_def for field_def in new_schema }
+    new_schema_set = set(new_schema_map.keys())
+
+    added_fields = new_schema_set - existing_schema_set
+    if added_fields:
+        merged_schema = existing_schema + [ new_schema_map[name] for name in added_fields ]
+        print(f'Permissive schema merge: added {added_fields}, '
+            f'retained {len(existing_schema)} existing columns')
+        return merged_schema
+    else:
+        print(f'Permissive schema merge: no new columns to add, '
+            f'retaining {len(existing_schema)} existing columns')
+        return existing_schema
+
+
 def align_df_with_catalog_schema(df: DataFrame, catalog_schema: list, partition_keys: set) -> DataFrame:
     """Align DataFrame columns with Glue Catalog schema by adding missing columns as NULL
 
