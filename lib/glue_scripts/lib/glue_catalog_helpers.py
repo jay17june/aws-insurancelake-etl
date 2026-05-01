@@ -263,7 +263,6 @@ def upsert_catalog_table(
         print(f'Creating target table: {target_database}.{table_name}')
         glue_client.create_table(DatabaseName=target_database, TableInput=table_input)
         return schema
-        return
 
     # Compare new schema to existing Glue catalog
     partitions_equal = ( table_response['Table'].get('PartitionKeys', []) == partition_schema )
