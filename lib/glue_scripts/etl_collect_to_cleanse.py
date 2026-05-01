@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(__file__) + '/lib')
 
 from glue_catalog_helpers import ( upsert_catalog_table, clean_column_names, generate_spec,
     put_s3_object, clear_partition )
-from custom_mapping import custommapping
+from custom_mapping import custommapping, align_df_with_catalog_schema
 from datatransform_typeconversion import *
 from datatransform_dataprotection import *
 from datatransform_stringmanipulation import *
@@ -321,7 +321,7 @@ def main():
     # The combination of Glue Catalog API upserts and Spark saveAsTable using Hive/Parquet
     # allows the lake to manage the merged/destination schema, and Spark to manage schema
     # consistency without needing to repair tables
-    upsert_catalog_table(
+    catalog_schema = upsert_catalog_table(
         filtered_df,
         args['target_database_name'],
         args['table_name'],
@@ -331,6 +331,10 @@ def main():
         # Will raise errors if nonpermissible schema change is detected
         allow_schema_change=input_spec.get('allow_schema_change', allow_schema_change),
     )
+
+    # Align DataFrame columns with catalog schema for permissive schema merge
+    if catalog_schema:
+        filtered_df = align_df_with_catalog_schema(filtered_df, catalog_schema, partition.keys())
 
     # Explicitly clear the existing partition in S3 and Glue Catalog (i.e. overwrite)
     # cleanse_partition_append mode skips clearing to accumulate incremental event data

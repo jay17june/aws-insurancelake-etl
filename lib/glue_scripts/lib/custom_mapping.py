@@ -5,7 +5,7 @@ from rapidfuzz import process as fuzz_process
 from rapidfuzz.utils import default_process
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructType, StructField, ArrayType
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, lit
 from awsglue.dynamicframe import DynamicFrame
 from awsglue.transforms import ApplyMapping
 
@@ -113,6 +113,40 @@ def custommapping(df: DataFrame, field_mapping_list: list, args: dict, lineage, 
 
     lineage.update_lineage(df, args['source_key'], 'mapping', map=field_mapping_list)
     return df.select(select_list)
+
+
+def align_df_with_catalog_schema(df: DataFrame, catalog_schema: list, partition_keys: set) -> DataFrame:
+    """Align DataFrame columns with Glue Catalog schema by adding missing columns as NULL
+
+    When using permissive schema merge, the catalog accumulates columns from all batches.
+    The current DataFrame may be missing columns from previous batches. This function adds
+    those missing columns as NULL so that saveAsTable does not fail on column count mismatch.
+
+    Parameters
+    ----------
+    df
+        Spark DataFrame to align with the catalog schema
+    catalog_schema
+        List of Dict objects from upsert_catalog_table return value, containing Name and Type
+    partition_keys
+        Set of partition column names to exclude from alignment
+
+    Returns
+    -------
+    DataFrame
+        Spark DataFrame with missing columns added as NULL
+    """
+    catalog_column_names = { col_def['Name'] for col_def in catalog_schema
+        if col_def['Name'] not in partition_keys }
+    df_column_names = set(df.columns) - set(partition_keys)
+
+    missing_columns = catalog_column_names - df_column_names
+    if missing_columns:
+        print(f'Aligning DataFrame with catalog schema: adding {missing_columns} as NULL')
+        for col_name in missing_columns:
+            df = df.withColumn(col_name, lit(None).cast('string'))
+
+    return df
 
 
 def custommapping_with_glue(dyf: DynamicFrame, field_mapping_list: list, args: dict, lineage) -> DynamicFrame:

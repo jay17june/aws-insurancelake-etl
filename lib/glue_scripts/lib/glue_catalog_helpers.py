@@ -262,6 +262,7 @@ def upsert_catalog_table(
         print(f'Target table name: {target_database}.{table_name} does not exist, no schema to compare')
         print(f'Creating target table: {target_database}.{table_name}')
         glue_client.create_table(DatabaseName=target_database, TableInput=table_input)
+        return schema
         return
 
     # Compare new schema to existing Glue catalog
@@ -273,7 +274,7 @@ def upsert_catalog_table(
     existing_column_schema = table_response['Table']['StorageDescriptor'].get('Columns', [])
     if existing_column_schema == schema:
         print(f'No schema changes detected with: {target_database}.{table_name}')
-        return
+        return schema
 
     if check_schema_change(existing_column_schema, schema, allow_schema_change):
         # Schema changes are permissible
@@ -297,6 +298,7 @@ def upsert_catalog_table(
                 table_input['StorageDescriptor']['Columns'] = existing_column_schema
         print(f'Updating target table schema: {target_database}.{table_name}')
         glue_client.update_table(DatabaseName=target_database, TableInput=table_input)
+        return table_input['StorageDescriptor']['Columns']
     else:
         print(f'Schema change between existing partitions and new partitions '
             'not permissible by {allow_schema_change} allow_schema_changes setting; aborting')

@@ -24,21 +24,6 @@ EVENT_TYPE_ROUTING = {
     'PaymentChanged': 'Payments',
 }
 
-# Nested fields to stringify per table to prevent Spark struct inference
-# with dynamic colon-containing keys (e.g., cc:17499)
-STRINGIFY_FIELDS = {
-    'Claims': [
-        'activities', 'contacts', 'exposures', 'reserves',
-        'vehicle-incidents', 'notes', 'policyAddresses',
-    ],
-    'Exposures': [
-        'contacts', 'exposures', 'vehicleIncidents',
-        'allValidationLevelsReached', 'policyAddresses',
-    ],
-    'Payments': [
-        'amount', 'transactionAmount', 'lineItems', 'payee',
-    ],
-}
 
 EVENT_TYPE_PATTERN = re.compile(r'cc:\d+-(\w+)-\d{8}T\d{6}Z-\d+\.json$')
 
@@ -116,13 +101,13 @@ def lambda_handler(event: dict, _) -> dict:
                 # This prevents Parquet schema conflicts between STRING and STRUCT
                 for field_name, field_value in list(event_data.items()):
                     if isinstance(field_value, dict) and 'code' in field_value and 'name' in field_value:
-                        # Convert {"code": "value", "name": "Display"} → "value"
                         event_data[field_name] = field_value['code']
 
-                # Stringify nested collections to prevent Hive issues with colon-containing keys
-                for field in STRINGIFY_FIELDS.get(table_name, []):
-                    if field in event_data and not isinstance(event_data[field], str):
-                        event_data[field] = json.dumps(event_data[field], separators=(',', ':'))
+                # Stringify ALL remaining complex objects (dicts and lists) to prevent
+                # Parquet struct evolution issues when nested fields vary across events
+                for field_name, field_value in list(event_data.items()):
+                    if isinstance(field_value, (dict, list)) and not isinstance(field_value, str):
+                        event_data[field_name] = json.dumps(field_value, separators=(',', ':'))
 
                 single_line = json.dumps(event_data, separators=(',', ':'))
                 events_by_table[table_name].append(single_line)
