@@ -219,6 +219,7 @@ class GlueJobsStack(cdk.Stack):
             # These arguments are common to all Glue job runs and are overlayed by the arguments
             # definition in the calling Step Functions GlueStartJobRun
             default_arguments=common_default_arguments | {
+                '--additional-python-modules': 'rapidfuzz',
                 '--extra-jars': ','.join(spark_libraries) if spark_libraries else None,
                 '--TempDir': f's3://{self.glue_scripts_temp_bucket.bucket_name}/etl/cleanse_to_consume/',
                 '--spark-event-logs-path': f's3://{self.glue_scripts_temp_bucket.bucket_name}/spark-ui/cleanse_to_consume/',
