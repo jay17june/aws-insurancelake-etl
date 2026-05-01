@@ -32,6 +32,7 @@ class GlueJobsStack(cdk.Stack):
         glue_scripts_temp_bucket: s3.Bucket,
         athena_workgroup: athena.CfnWorkGroup,
         data_lineage_table: dynamodb.Table = None,
+        glue_config: dict = None,
         **kwargs
     ):
         """CloudFormation stack to create Glue Jobs, Connections, and an IAM role for permissions.
@@ -66,6 +67,9 @@ class GlueJobsStack(cdk.Stack):
             Optional keyword arguments to pass up to parent Stack class
         """
         super().__init__(scope, construct_id, **kwargs)
+
+        # Set configuration defaults
+        glue_config = glue_config or {}
 
         self.target_environment = target_environment
         self.mappings = get_environment_configuration(target_environment)
@@ -190,7 +194,7 @@ class GlueJobsStack(cdk.Stack):
             max_retries=0,
             # With auto-scaling, this represents the maximum number of workers
             # If using a Connection, there must be enough IP addresses for each worker
-            number_of_workers=25,
+            number_of_workers=glue_config.get('workers_standard', 25),
             role=self.glue_role.role_arn,
             worker_type='G.1X',
             # TODO: Allow the user to specify a user-managed, out-of-stack security group name
@@ -215,6 +219,7 @@ class GlueJobsStack(cdk.Stack):
             # These arguments are common to all Glue job runs and are overlayed by the arguments
             # definition in the calling Step Functions GlueStartJobRun
             default_arguments=common_default_arguments | {
+                '--additional-python-modules': 'rapidfuzz',
                 '--extra-jars': ','.join(spark_libraries) if spark_libraries else None,
                 '--TempDir': f's3://{self.glue_scripts_temp_bucket.bucket_name}/etl/cleanse_to_consume/',
                 '--spark-event-logs-path': f's3://{self.glue_scripts_temp_bucket.bucket_name}/spark-ui/cleanse_to_consume/',
@@ -231,7 +236,7 @@ class GlueJobsStack(cdk.Stack):
             max_retries=0,
             # With auto-scaling, this represents the maximum number of workers
             # If using a Connection, there must be enough IP addresses for each worker
-            number_of_workers=25,
+            number_of_workers=glue_config.get('workers_standard', 25),
             role=self.glue_role.role_arn,
             worker_type='G.1X',
             # TODO: Allow the user to specify a user-managed, out-of-stack security group name
@@ -272,7 +277,71 @@ class GlueJobsStack(cdk.Stack):
             max_retries=0,
             # With auto-scaling, this represents the maximum number of workers
             # If using a Connection, there must be enough IP addresses for each worker
-            number_of_workers=25,
+            number_of_workers=glue_config.get('workers_standard', 25),
+            role=self.glue_role.role_arn,
+            worker_type='G.1X',
+        )
+
+        # Guidewire AppEvents bulk migration job (one-time use, manually triggered)
+        self.bulk_migration_job = glue.CfnJob(
+            self,
+            f'{target_environment}{self.logical_id_prefix}GwBulkMigrationJob',
+            name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-bulk-migration-job',
+            description='One-time Guidewire AppEvents bulk migration - reads all events from GW S3 and writes JSONL to InsuranceLake',
+            command=glue.CfnJob.JobCommandProperty(
+                name='glueetl',
+                python_version='3',
+                script_location=f's3://{self.glue_scripts_bucket.bucket_name}/etl/etl_guidewire_bulk_migration.py'
+            ),
+            connections=glue.CfnJob.ConnectionsListProperty(
+                connections=[ job_connection.connection_input.name for job_connection in job_connections ],
+            ) if job_connections else None,
+            default_arguments=common_default_arguments | {
+                '--TempDir': f's3://{self.glue_scripts_temp_bucket.bucket_name}/etl/gw_bulk_migration/',
+                '--spark-event-logs-path': f's3://{self.glue_scripts_temp_bucket.bucket_name}/spark-ui/gw_bulk_migration/',
+                '--source_path': 's3://REPLACE_WITH_GW_BUCKET/',
+                '--target_bucket': f's3://{self.buckets.raw.bucket_name}',
+                '--source_system': 'GWClaimCenter',
+            },
+            execution_property=glue.CfnJob.ExecutionPropertyProperty(
+                max_concurrent_runs=1,
+            ),
+            glue_version='5.1',
+            max_retries=0,
+            number_of_workers=glue_config.get('workers_bulk', 50),
+            role=self.glue_role.role_arn,
+            worker_type='G.1X',
+        )
+
+        # Optimized bulk migration job for 1M+ events with schema sampling
+        self.bulk_migration_optimized_job = glue.CfnJob(
+            self,
+            f'{target_environment}{self.logical_id_prefix}GwBulkMigrationOptimizedJob',
+            name=f'{target_environment.lower()}-{self.resource_name_prefix}-gw-bulk-migration-optimized-job',
+            description='Optimized Guidewire AppEvents bulk migration - uses schema sampling for 1M+ events',
+            command=glue.CfnJob.JobCommandProperty(
+                name='glueetl',
+                python_version='3',
+                script_location=f's3://{self.glue_scripts_bucket.bucket_name}/etl/etl_guidewire_bulk_migration_optimized.py'
+            ),
+            connections=glue.CfnJob.ConnectionsListProperty(
+                connections=[ job_connection.connection_input.name for job_connection in job_connections ],
+            ) if job_connections else None,
+            default_arguments=common_default_arguments | {
+                '--TempDir': f's3://{self.glue_scripts_temp_bucket.bucket_name}/etl/gw_bulk_migration_optimized/',
+                '--spark-event-logs-path': f's3://{self.glue_scripts_temp_bucket.bucket_name}/spark-ui/gw_bulk_migration_optimized/',
+                '--source_path': 's3://REPLACE_WITH_GW_BUCKET/',
+                '--target_bucket': f's3://{self.buckets.raw.bucket_name}',
+                '--source_system': 'GWClaimCenter',
+                '--sample_size': '5000',     # Schema inference from 5K files instead of all
+                '--batch_partitions': '100', # Write 100 output files per table (parallel processing)
+            },
+            execution_property=glue.CfnJob.ExecutionPropertyProperty(
+                max_concurrent_runs=1,
+            ),
+            glue_version='5.1',
+            max_retries=0,
+            number_of_workers=glue_config.get('workers_bulk', 100),  # Default to more workers for bulk
             role=self.glue_role.role_arn,
             worker_type='G.1X',
         )

@@ -1,0 +1,11 @@
+{
+    "after_transform": {
+        "warn_rules": [
+            "Completeness 'claimnumber' > 0.90"
+        ],
+        "halt_rules": [
+            "(ColumnExists 'id') and (IsComplete 'id')",
+            "(ColumnExists 'claimnumber') and (IsComplete 'claimnumber')"
+        ]
+    }
+}

@@ -1,0 +1,335 @@
+<mxfile host="Electron" version="29.6.1">
+  <diagram name="Page-1" id="diagram-1">
+    <mxGraphModel dx="1200" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title Block -->
+        <mxCell id="title-group" value="" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FF9900;strokeWidth=2;fillColor=none;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1520" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="title" value="Guidewire ClaimCenter AppEvents Integration" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=30;fontStyle=1;fontColor=#16191F;" vertex="1" parent="title-group">
+          <mxGeometry x="20" y="15" width="600" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Auto-scaling event processing pipeline with surge resilience for catastrophic events and bulk migrations" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=16;fontStyle=0;fontColor=#16191F;" vertex="1" parent="title-group">
+          <mxGeometry x="20" y="45" width="800" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: Guidewire ClaimCenter -->
+        <mxCell id="guidewire-container" value="Guidewire ClaimCenter SaaS" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=light-dark(#666666,#D4D4D4);fillColor=#f5f5f5;container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="160" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="guidewire-icon" value="" style="sketch=0;outlineConnect=0;fontColor=#16191F;gradientColor=none;fillColor=#E7FAFE;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=ellipse;" vertex="1" parent="guidewire-container">
+          <mxGeometry x="76" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- AWS Cloud -->
+        <mxCell id="aws-cloud" value="AWS Cloud" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;html=1;whiteSpace=wrap;fontSize=12;fontFamily=Helvetica;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#232F3E;fillColor=light-dark(#232F3E0D,#232F3E0D);fillStyle=auto;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;dashed=0;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="340" y="160" width="1200" height="900" as="geometry" />
+        </mxCell>
+
+        <!-- S3 Bucket: Guidewire Landing -->
+        <mxCell id="s3-guidewire-container" value="Storage" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#E7FAFE;fillColor=light-dark(#E7FAFE,#E7FAFE);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="60" y="60" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-guidewire" value="Amazon S3&lt;div&gt;&lt;i&gt;AppEvents Landing&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#E7FAFE;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fontFamily=Helvetica;" vertex="1" parent="s3-guidewire-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- SQS Queue -->
+        <mxCell id="sqs-container" value="Integration" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#F58536;fillColor=light-dark(#F585360D,#F585360D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="240" y="60" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="sqs-main" value="Amazon SQS&lt;div&gt;&lt;i&gt;Event Buffer + DLQ&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#F58536;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;fontFamily=Helvetica;" vertex="1" parent="sqs-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- Lambda Function -->
+        <mxCell id="lambda-container" value="Compute" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#FF9900;fillColor=light-dark(#FF99000D,#FF99000D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="420" y="60" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="lambda-batching" value="AWS Lambda&lt;div&gt;&lt;i&gt;Auto-Scaling Batching&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#FF9900;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fontFamily=Helvetica;" vertex="1" parent="lambda-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- S3 Buckets: InsuranceLake -->
+        <mxCell id="s3-insurancelake-container" value="Storage" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#E7FAFE;fillColor=light-dark(#E7FAFE,#E7FAFE);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="600" y="60" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-collect" value="Amazon S3&lt;div&gt;&lt;i&gt;Collect Bucket&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#E7FAFE;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fontFamily=Helvetica;" vertex="1" parent="s3-insurancelake-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- Step Functions -->
+        <mxCell id="stepfunctions-container" value="Integration" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#F58536;fillColor=light-dark(#F585360D,#F585360D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="780" y="60" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="step-functions" value="AWS Step Functions&lt;div&gt;&lt;i&gt;ETL Orchestration&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#F58536;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.step_functions;fontFamily=Helvetica;" vertex="1" parent="stepfunctions-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- AWS Glue -->
+        <mxCell id="glue-container" value="Analytics" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#8C4FFF;fillColor=light-dark(#8C4FFF0D,#8C4FFF0D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="240" y="240" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="glue-etl" value="AWS Glue&lt;div&gt;&lt;i&gt;Collect → Cleanse&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.glue;fontFamily=Helvetica;" vertex="1" parent="glue-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- AWS Glue Consume -->
+        <mxCell id="glue-consume-container" value="Analytics" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#8C4FFF;fillColor=light-dark(#8C4FFF0D,#8C4FFF0D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="420" y="240" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="glue-consume" value="AWS Glue&lt;div&gt;&lt;i&gt;Cleanse → Consume&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.glue;fontFamily=Helvetica;" vertex="1" parent="glue-consume-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- S3 Cleanse Bucket -->
+        <mxCell id="s3-cleanse-container" value="Storage" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#E7FAFE;fillColor=light-dark(#E7FAFE,#E7FAFE);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="600" y="240" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-cleanse" value="Amazon S3&lt;div&gt;&lt;i&gt;Cleanse Bucket&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#E7FAFE;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fontFamily=Helvetica;" vertex="1" parent="s3-cleanse-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- S3 Consume Bucket -->
+        <mxCell id="s3-consume-container" value="Storage" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#E7FAFE;fillColor=light-dark(#E7FAFE,#E7FAFE);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="780" y="240" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-consume" value="Amazon S3&lt;div&gt;&lt;i&gt;Consume Bucket&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#E7FAFE;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fontFamily=Helvetica;" vertex="1" parent="s3-consume-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- DynamoDB -->
+        <mxCell id="dynamodb-container" value="Database" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#3334B9;fillColor=light-dark(#3334B90D,#3334B90D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="60" y="420" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="dynamodb" value="Amazon DynamoDB&lt;div&gt;&lt;i&gt;Job Audit &amp; Lookups&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#3334B9;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;fontFamily=Helvetica;" vertex="1" parent="dynamodb-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- Athena -->
+        <mxCell id="athena-container" value="Analytics" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#8C4FFF;fillColor=light-dark(#8C4FFF0D,#8C4FFF0D);container=1;pointerEvents=0;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="960" y="240" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="athena" value="Amazon Athena&lt;div&gt;&lt;i&gt;SQL Analytics&lt;/i&gt;&lt;/div&gt;" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#16191F;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.athena;fontFamily=Helvetica;" vertex="1" parent="athena-container">
+          <mxGeometry x="36" y="36" width="48" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- Table Labels -->
+        <mxCell id="table-label-claims" value="Claims Table" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=11;fontStyle=0;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="480" y="390" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="table-label-exposures" value="Exposures Table" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=11;fontStyle=0;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="610" y="390" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="table-label-payments" value="Payments Table" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=11;fontStyle=0;fontColor=#16191F;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="750" y="390" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <!-- Guidewire to S3 -->
+        <mxCell id="edge-gw-to-s3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="1" source="guidewire-container" target="s3-guidewire">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-gw-to-s3-label" value="JSON Events" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontFamily=Helvetica;fontSize=11;fontColor=#16191F;" connectable="0" vertex="1" parent="edge-gw-to-s3">
+          <mxGeometry x="-0.1" y="-15" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- S3 to SQS -->
+        <mxCell id="edge-s3-to-sqs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="s3-guidewire" target="sqs-main">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-s3-to-sqs-label" value="S3 Event Notification" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontFamily=Helvetica;fontSize=11;fontColor=#16191F;" connectable="0" vertex="1" parent="edge-s3-to-sqs">
+          <mxGeometry x="0" y="-15" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- SQS to Lambda -->
+        <mxCell id="edge-sqs-to-lambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="sqs-main" target="lambda-batching">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-sqs-to-lambda-label" value="Event Source Mapping&lt;div&gt;(batch=100, concurrency=10)&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontFamily=Helvetica;fontSize=11;fontColor=#16191F;" connectable="0" vertex="1" parent="edge-sqs-to-lambda">
+          <mxGeometry x="0" y="-20" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Lambda to S3 Collect -->
+        <mxCell id="edge-lambda-to-collect" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="lambda-batching" target="s3-collect">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-lambda-to-collect-label" value="JSONL Batches&lt;div&gt;Claims | Exposures | Payments&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontFamily=Helvetica;fontSize=11;fontColor=#16191F;" connectable="0" vertex="1" parent="edge-lambda-to-collect">
+          <mxGeometry x="0" y="-20" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- S3 Collect to Step Functions -->
+        <mxCell id="edge-collect-to-sf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="s3-collect" target="step-functions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-collect-to-sf-label" value="S3 Event Trigger" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontFamily=Helvetica;fontSize=11;fontColor=#16191F;" connectable="0" vertex="1" parent="edge-collect-to-sf">
+          <mxGeometry x="0" y="-15" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step Functions to Glue Jobs -->
+        <mxCell id="edge-sf-to-glue1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="aws-cloud" source="step-functions" target="glue-etl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="805" y="200" />
+              <mxPoint x="300" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Glue ETL to S3 Cleanse -->
+        <mxCell id="edge-glue1-to-cleanse" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="glue-etl" target="s3-cleanse">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="300" y="380" />
+              <mxPoint x="660" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step Functions to Glue Consume -->
+        <mxCell id="edge-sf-to-glue2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="aws-cloud" source="step-functions" target="glue-consume">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="855" y="200" />
+              <mxPoint x="480" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Glue Consume to S3 Consume -->
+        <mxCell id="edge-glue2-to-consume" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="glue-consume" target="s3-consume">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="480" y="380" />
+              <mxPoint x="840" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- S3 Consume to Athena -->
+        <mxCell id="edge-consume-to-athena" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=2;" edge="1" parent="aws-cloud" source="s3-consume" target="athena">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-consume-to-athena-label" value="SQL Queries" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontFamily=Helvetica;fontSize=11;fontColor=#16191F;" connectable="0" vertex="1" parent="edge-consume-to-athena">
+          <mxGeometry x="0" y="-15" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- DynamoDB to Glue (for lookups) -->
+        <mxCell id="edge-dynamo-to-glue" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16191F;strokeWidth=1;dashed=1;" edge="1" parent="aws-cloud" source="dynamodb" target="glue-etl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="120" y="380" />
+              <mxPoint x="300" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step Number Badges -->
+        <mxCell id="step1" value="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="300" y="200" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step2" value="2" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="210" y="100" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step3" value="3" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="390" y="100" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step4" value="4" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="570" y="100" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step5" value="5" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="750" y="100" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step6" value="6" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="270" y="280" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step7" value="7" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="450" y="280" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="step8" value="8" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="aws-cloud">
+          <mxGeometry x="930" y="280" width="28" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- Right Sidebar Legend -->
+        <mxCell id="legend-panel" value="" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=none;fillColor=light-dark(#EDF3FF,#305363);fillStyle=auto;container=1;pointerEvents=0;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="1580" y="160" width="650" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-title" value="Process Flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=light-dark(#000000,#FFFFFF);" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="20" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step1" value="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="70" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step1-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;Guidewire ClaimCenter writes AppEvents (ClaimCreated, ExposureAdded, PaymentCreated) to S3 bucket&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="70" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step2" value="2" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="118" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step2-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;S3 OBJECT_CREATED event notification sends message to SQS queue (with DLQ for failed messages)&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="118" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step3" value="3" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="166" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step3-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;SQS Event Source Mapping auto-scales Lambda (up to 10 concurrent instances) based on queue depth&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="166" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step4" value="4" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="214" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step4-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;Lambda classifies events by type and writes consolidated JSONL batches to InsuranceLake collect bucket&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="214" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step5" value="5" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="262" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step5-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;S3 events on collect bucket trigger Step Functions state machine to orchestrate ETL pipeline&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="262" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step6" value="6" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="310" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step6-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;Collect-to-Cleanse Glue job applies schema mapping, transforms, and appends events to cleanse bucket (Parquet)&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="310" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step7" value="7" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="358" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step7-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;Cleanse-to-Consume Glue job deduplicates all cleanse data to produce current-state tables in consume bucket&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="358" width="548" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-step8" value="8" style="ellipse;whiteSpace=wrap;html=1;fillColor=#007CBD;strokeColor=default;strokeWidth=2;shadow=1;glass=0;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="legend-panel">
+          <mxGeometry x="20" y="406" width="40" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-step8-text" value="&lt;span style=&quot;color: light-dark(rgb(0,0,0), rgb(255,255,255))&quot;&gt;Athena provides SQL analytics on current-state claims, exposures, and payments data with Athena views for nested JSON&lt;/span&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="legend-panel">
+          <mxGeometry x="72" y="406" width="548" height="38" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

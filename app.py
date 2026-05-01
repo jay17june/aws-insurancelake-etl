@@ -97,24 +97,24 @@ if os.environ.get('ENV', PROD) == PROD:
     )
     tag(prod_pipeline_stack, DEPLOYMENT)
 
-    # TODO: Modify replication bucket to have access logs and key rotation
-    # Apply tagging to cross-region support stacks
-    for stack in app.node.children:
-        # All other stacks in the app are custom constructs
-        if type(stack) == cdk.Stack:
-            # Use the deployment environment for tagging because there
-            # is no way to determine 1:1 which pipeline created the stack
-            tag(stack, DEPLOYMENT)
+# TODO: Modify replication bucket to have access logs and key rotation
+# Apply tagging to cross-region support stacks
+for stack in app.node.children:
+    # All other stacks in the app are custom constructs
+    if type(stack) == cdk.Stack:
+        # Use the deployment environment for tagging because there
+        # is no way to determine 1:1 which pipeline created the stack
+        tag(stack, DEPLOYMENT)
 
-            NagSuppressions.add_resource_suppressions(stack, [
-                {
-                    'id': 'AwsSolutions-S1',
-                    'reason': 'Cross-region support stack and bucket are auto-created by Codepipeline'
-                },
-                {
-                    'id': 'AwsSolutions-KMS5',
-                    'reason': 'Cross-region support stack and bucket are auto-created by Codepipeline'
-                },
-            ], apply_to_children=True)
+        NagSuppressions.add_resource_suppressions(stack, [
+            {
+                'id': 'AwsSolutions-S1',
+                'reason': 'Cross-region support stack and bucket are auto-created by Codepipeline'
+            },
+            {
+                'id': 'AwsSolutions-KMS5',
+                'reason': 'Cross-region support stack and bucket are auto-created by Codepipeline'
+            },
+        ], apply_to_children=True)
 
 app.synth()

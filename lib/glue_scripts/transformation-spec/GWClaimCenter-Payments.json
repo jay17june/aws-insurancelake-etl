@@ -1,0 +1,18 @@
+{
+    "input_spec": {
+        "table_description": "Guidewire ClaimCenter AppEvents - Payments",
+        "strict_schema_mapping": false,
+        "allow_schema_change": "permissive",
+        "cleanse_partition_append": true,
+        "json": {
+            "multiline": false
+        }
+    },
+
+    "transform_spec": {
+        "literal": {
+            "sourcesystem": "GWClaimCenter",
+            "eventtype": "Payment"
+        }
+    }
+}

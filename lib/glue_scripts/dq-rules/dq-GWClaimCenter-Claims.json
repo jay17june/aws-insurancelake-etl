@@ -1,0 +1,13 @@
+{
+    "after_transform": {
+        "warn_rules": [
+            "Completeness 'policynumber' > 0.80",
+            "Completeness 'lobcode' > 0.80",
+            "Completeness 'reporteddate' > 0.80"
+        ],
+        "halt_rules": [
+            "(ColumnExists 'claimnumber') and (IsComplete 'claimnumber')",
+            "(ColumnExists 'id') and (IsComplete 'id')"
+        ]
+    }
+}

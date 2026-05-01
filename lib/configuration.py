@@ -26,6 +26,17 @@ RESOURCE_NAME_PREFIX = 'resource_name_prefix'
 CODE_BRANCH = 'code_branch'
 LINEAGE='lineage'
 
+# Guidewire AppEvents Integration Configuration
+ENABLE_GUIDEWIRE_APPEVENTS = 'enable_guidewire_appevents'
+GUIDEWIRE_APPEVENTS_BUCKET = 'guidewire_appevents_bucket'
+GUIDEWIRE_LAMBDA_MEMORY = 'guidewire_lambda_memory'
+GUIDEWIRE_LAMBDA_TIMEOUT = 'guidewire_lambda_timeout'
+GUIDEWIRE_LAMBDA_BATCH_SIZE = 'guidewire_lambda_batch_size'
+GUIDEWIRE_LAMBDA_CONCURRENCY = 'guidewire_lambda_concurrency'
+GUIDEWIRE_SQS_VISIBILITY_TIMEOUT = 'guidewire_sqs_visibility_timeout'
+GUIDEWIRE_GLUE_WORKERS_STANDARD = 'guidewire_glue_workers_standard'
+GUIDEWIRE_GLUE_WORKERS_BULK = 'guidewire_glue_workers_bulk'
+
 # Used in Automated Outputs
 VPC_ID = 'vpc_id'
 AVAILABILITY_ZONE_1 = 'availability_zone_1'
@@ -77,7 +88,7 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
         local_mapping = {
             DEPLOYMENT: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
 
                 # If you use Github, Gitlab, Bitbucket Cloud or any other supported CodeConnections
                 # provider, specify the CodeConnections ARN
@@ -107,24 +118,54 @@ def get_local_configuration(environment: str, local_mapping: dict = None) -> dic
             },
             DEV: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
                 LINEAGE: True,
                 # VPC_CIDR: '10.20.0.0/22',
                 CODE_BRANCH: 'develop',
+                # Guidewire AppEvents Integration Settings
+                ENABLE_GUIDEWIRE_APPEVENTS: True,
+                GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
+                GUIDEWIRE_LAMBDA_MEMORY: 512,
+                GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+                GUIDEWIRE_LAMBDA_BATCH_SIZE: 100,
+                GUIDEWIRE_LAMBDA_CONCURRENCY: 10,
+                GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 960,
+                GUIDEWIRE_GLUE_WORKERS_STANDARD: 25,
+                GUIDEWIRE_GLUE_WORKERS_BULK: 50,
             },
             TEST: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
                 LINEAGE: True,
                 # VPC_CIDR: '10.10.0.0/22',
                 CODE_BRANCH: 'test',
+                # Guidewire AppEvents Integration Settings
+                ENABLE_GUIDEWIRE_APPEVENTS: True,
+                GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
+                GUIDEWIRE_LAMBDA_MEMORY: 512,
+                GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+                GUIDEWIRE_LAMBDA_BATCH_SIZE: 100,
+                GUIDEWIRE_LAMBDA_CONCURRENCY: 10,
+                GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 960,
+                GUIDEWIRE_GLUE_WORKERS_STANDARD: 25,
+                GUIDEWIRE_GLUE_WORKERS_BULK: 50,
             },
             PROD: {
                 ACCOUNT_ID: active_account_id,
-                REGION: 'us-east-2',
+                REGION: 'us-east-1',
                 LINEAGE: True,
                 # VPC_CIDR: '10.0.0.0/22',
                 CODE_BRANCH: 'main',
+                # Guidewire AppEvents Integration Settings
+                ENABLE_GUIDEWIRE_APPEVENTS: True,
+                GUIDEWIRE_APPEVENTS_BUCKET: 'gw-appevents-038462774895-collect',
+                GUIDEWIRE_LAMBDA_MEMORY: 1024,
+                GUIDEWIRE_LAMBDA_TIMEOUT: 15,
+                GUIDEWIRE_LAMBDA_BATCH_SIZE: 200,
+                GUIDEWIRE_LAMBDA_CONCURRENCY: 20,
+                GUIDEWIRE_SQS_VISIBILITY_TIMEOUT: 1200,
+                GUIDEWIRE_GLUE_WORKERS_STANDARD: 50,
+                GUIDEWIRE_GLUE_WORKERS_BULK: 100,
             }
         }
 
@@ -237,3 +278,5 @@ def get_resource_name_prefix() -> str:
         Resource name prefix from deployment configuration
     """
     return get_local_configuration(DEPLOYMENT)[RESOURCE_NAME_PREFIX]
+
+
