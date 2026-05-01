@@ -2,7 +2,7 @@
 title: Guidewire AppEvents Developer Guide
 parent: Developer Documentation
 nav_order: 6
-last_modified_date: 2026-04-09
+last_modified_date: 2026-05-01
 ---
 # Guidewire ClaimCenter AppEvents Integration Developer Guide
 {: .no_toc }
@@ -180,31 +180,43 @@ Each event type uses minimal configuration that adapts automatically to payload 
 {: .note }
 Athena views for flattening nested JSON (activities, exposures, contacts, reserves) are provided as reference SQL in `docs/athena-views-GWClaimCenter-Claims.sql`. These are not created automatically by the pipeline because the nested columns are optional and may not exist in every batch. Create the views manually in the Athena console once your cleanse table has accumulated events containing these fields.
 
-### Schema Mapping Details
+### Schema Merge (Preventing Column Loss)
 
-With dynamic schema processing, explicit schema mappings are no longer used. InsuranceLake's `clean_column_names()` automatically processes ALL fields. The following patterns show how Guidewire fields are handled:
+When using `cleanse_partition_append`, different batches may have different fields. Without schema merge, the Glue Catalog would lose columns from previous batches when a new batch has fewer fields.
 
-**Enum Normalization** (handled in Lambda):
-```
-state: {"code": "open", "name": "Open"} → state: "open"
-lobCode: {"code": "PersonalAutoLine"} → lobcode: "PersonalAutoLine"
-`faultRating`.`code`,faultrating
-```
+**Solution**: `merge_catalog_schema()` in `custom_mapping.py` merges existing + new schemas using set operations:
 
-**Nested Object Flattening**:
-```csv
-lossLocation,null
-`lossLocation`.`addressLine1`,losslocation_address1
-`lossLocation`.`city`,losslocation_city
-`lossLocation`.`state`.`code`,losslocation_statecode
+```python
+# In custom_mapping.py
+def merge_catalog_schema(existing_schema, new_schema):
+    existing_schema_set = set(existing_schema_map.keys())
+    new_schema_set = set(new_schema_map.keys())
+    added_fields = new_schema_set - existing_schema_set
+    return existing_schema + [new_schema_map[name] for name in added_fields]
 ```
 
-**Collections Preserved as Strings**:
-```csv
-activities,activities
-contacts,contacts
-exposures,exposures
+**Called from** `upsert_catalog_table()` in `glue_catalog_helpers.py` when `allow_schema_change == 'permissive'`.
+
+**DataFrame Alignment**: `align_df_with_catalog_schema()` in `custom_mapping.py` adds missing columns as NULL to match the merged catalog schema before `saveAsTable`.
+
+**Result**: The Glue Catalog acts as a high-water mark — columns only accumulate, never disappear. Parquet handles missing data as NULL.
+
+### Data Processing in Lambda
+
+The Lambda performs two normalizations before writing JSONL:
+
+**Enum Normalization** — Extracts `.code` from enum structs for consistent types:
 ```
+{"code": "open", "name": "Open"} → "open"
+{"code": "PersonalAutoLine", "name": "Personal Auto"} → "PersonalAutoLine"
+```
+
+**Dynamic Stringify** — Converts ALL remaining complex objects (dicts/lists) to JSON strings:
+```
+{"addressLine1": "123 Main St", "city": "Austin"} → "{\"addressLine1\":\"123 Main St\",\"city\":\"Austin\"}"
+```
+
+This prevents both Parquet struct evolution errors and Hive metastore issues with dynamic keys.
 
 ### Transform Specifications
 
@@ -257,35 +269,39 @@ for field in event_schema:  # ALL fields processed
 
 ### Data Quality Rules
 
+DQ rules only reference fields guaranteed to exist in all events with dynamic schema:
+
 | Table | Warn Rules | Halt Rules |
 |-------|------------|------------|
-| **Claims** | policynumber > 90%, lobcode > 90%, reporteddate > 90%, insured_name > 80% | claimnumber complete, lossdate complete |
-| **Exposures** | lobcode > 90%, lossdate > 90% | claimnumber complete |
-| **Payments** | policynumber > 90%, paymentstatus > 90% | claimnumber complete, paymentid complete |
+| **Claims** | policynumber > 80%, lobcode > 80%, reporteddate > 80% | claimnumber complete, id complete |
+| **Exposures** | lobcode > 80% | claimnumber complete, id complete |
+| **Payments** | claimnumber > 90% | id complete, claimnumber complete |
 
 ### Consume SQL Deduplication
 
-All consume tables use ROW_NUMBER() windowing to deduplicate events:
+All consume tables use `SELECT *` with ROW_NUMBER() windowing to deduplicate events while preserving all dynamic fields:
 
 ```sql
--- Claims deduplication example
-SELECT ...
+-- Claims deduplication (uses SELECT * for dynamic schema compatibility)
+SELECT *
 FROM (
     SELECT *, ROW_NUMBER() OVER (
         PARTITION BY claimnumber
-        ORDER BY reporteddate DESC
+        ORDER BY COALESCE(reporteddate, lossdate, current_date()) DESC
     ) as rn
     FROM gwclaimcenter.claims
 )
 WHERE rn = 1
-ORDER BY lossdate DESC, claimnumber ASC
 ```
 
 | Table | Dedup Key | Ordering Field | Logic |
 |-------|-----------|----------------|-------|
-| Claims | `claimnumber` | `reporteddate DESC` | Most recently reported claim event per claim |
-| Exposures | `claimid` | `reporteddate DESC` | Most recently reported exposure event per claim |
-| Payments | `paymentid` | `createtime DESC` | Most recently created payment event per payment |
+| Claims | `claimnumber` | `COALESCE(reporteddate, lossdate)` | Most recent claim event per claim |
+| Exposures | `id` | `COALESCE(reporteddate, lossdate)` | Most recent exposure event per ID |
+| Payments | `id` | `COALESCE(createtime, current_timestamp())` | Most recent payment event per ID |
+
+{: .note }
+Consume SQL uses `SELECT *` instead of listing specific fields because the dynamic schema means column names vary across batches. COALESCE fallbacks handle cases where ordering fields may be absent.
 
 ## Implementation Details
 
@@ -419,30 +435,39 @@ The Guidewire stack only deploys when `ENABLE_GUIDEWIRE_APPEVENTS: True` in the 
 | File | Purpose | Key Functions/Classes |
 |------|---------|----------------------|
 | `lib/guidewire_appevents_stack.py` | CDK stack definition | GuidewireAppEventsStack class, SQS/Lambda/IAM resources |
-| `lib/guidewire_appevents_batching/lambda_handler.py` | Event batching logic | classify_event(), lambda_handler() |
+| `lib/guidewire_appevents_batching/lambda_handler.py` | Event batching logic | classify_event(), enum normalization, dynamic stringify |
+| `lib/glue_scripts/lib/custom_mapping.py` | Schema operations | merge_catalog_schema(), align_df_with_catalog_schema() |
+| `lib/glue_scripts/lib/glue_catalog_helpers.py` | Glue Catalog management | upsert_catalog_table() (calls merge_catalog_schema) |
+| `lib/glue_scripts/etl_collect_to_cleanse.py` | Cleanse ETL script | Partition append, DataFrame alignment with catalog |
 | `lib/glue_scripts/etl_guidewire_bulk_migration.py` | Bulk migration job | classify_event_type(), Spark folder read |
-| `lib/glue_scripts/etl_collect_to_cleanse.py` | Modified ETL script | Partition append conditional logic |
-| `transformation-spec/*.csv` | Schema mappings | Field name mappings with backtick notation |
-| `transformation-spec/*.json` | Transform specs | Date parsing, type conversion, partition_append flag |
-| `dq-rules/*.json` | Data quality rules | Warn/halt rules per table |
-| `transformation-sql/*.sql` | Consume deduplication | ROW_NUMBER() windowing SQL |
+| `transformation-spec/*.json` | Transform specs | Minimal config: literal metadata, partition_append flag |
+| `dq-rules/*.json` | Data quality rules | Warn/halt rules using guaranteed fields only |
+| `transformation-sql/*.sql` | Consume deduplication | SELECT * with ROW_NUMBER() windowing |
+| `docs/athena-views-*.sql` | Athena view reference | Manual UNNEST views for nested JSON in consume layer |
 
 ### Lambda Handler Logic
 
 **SQS Batch Event Processing:**
 ```python
 def lambda_handler(event: dict, _) -> dict:
-    # Receive up to 100 SQS messages from event source mapping
     for record in event.get('Records', []):
         body = json.loads(record['body'])
-        # Extract S3 event notification from SQS message body
         for s3_record in body.get('Records', []):
             source_key = unquote_plus(s3_record['s3']['object']['key'])
             table_name = classify_event(source_key)
-            # Read JSON, stringify nested fields, accumulate by table
+            event_data = json.loads(content)
+
+            # 1. Normalize enums: {"code": "open", "name": "Open"} → "open"
+            for field_name, field_value in list(event_data.items()):
+                if isinstance(field_value, dict) and 'code' in field_value and 'name' in field_value:
+                    event_data[field_name] = field_value['code']
+
+            # 2. Stringify ALL remaining complex objects (dicts/lists)
+            for field_name, field_value in list(event_data.items()):
+                if isinstance(field_value, (dict, list)):
+                    event_data[field_name] = json.dumps(field_value)
 
     # Write separate JSONL per table type
-    # Return partial failures for retry
     return {'batchItemFailures': [...]}
 ```
 
@@ -735,22 +760,18 @@ To support additional event types (e.g., `ReserveCreated`, `DocumentAdded`):
    }
    ```
 
-1. **Configure stringify fields** for new table types:
-   ```python
-   STRINGIFY_FIELDS = {
-       # existing tables...
-       'Reserves': ['lineItems', 'exposure', 'coverage'],
-       'Documents': ['attachments', 'metadata'],
-   }
+1. **Create InsuranceLake configuration files**:
+   - `transformation-spec/GWClaimCenter-Reserves.json` (minimal: literal metadata + partition_append)
+   - `dq-rules/dq-GWClaimCenter-Reserves.json` (halt on id + claimnumber)
+   - `transformation-sql/spark-GWClaimCenter-Reserves.sql` (SELECT * with ROW_NUMBER dedup)
+
+1. **Deploy updated configuration**:
+   ```bash
+   cdk deploy Prod-InsuranceLakeEtlPipeline/Prod/InsuranceLakeEtlGlueJobs
    ```
 
-1. **Create InsuranceLake configuration files**:
-   - `transformation-spec/GWClaimCenter-Reserves.csv`
-   - `transformation-spec/GWClaimCenter-Reserves.json`
-   - `dq-rules/dq-GWClaimCenter-Reserves.json`
-   - `transformation-sql/spark-GWClaimCenter-Reserves.sql`
-
-1. **Deploy updated configuration**: `ENV=prod cdk deploy`
+{: .note }
+No schema mapping CSV or stringify field configuration needed. The dynamic schema processing and dynamic stringify in the Lambda automatically handle any new event type's field structure.
 
 **Adding New Guidewire Products:**
 

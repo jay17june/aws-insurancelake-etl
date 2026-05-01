@@ -2,7 +2,7 @@
 title: Guidewire AppEvents Integration
 parent: User Documentation
 nav_order: 9
-last_modified_date: 2026-04-09
+last_modified_date: 2026-05-01
 ---
 # Guidewire ClaimCenter AppEvents Integration
 {: .no_toc }
@@ -146,7 +146,11 @@ ENABLE_GUIDEWIRE_APPEVENTS: False,    # Skip Guidewire stack deployment
 - ✅ **Zero maintenance** — No schema mapping files to update when Guidewire changes
 - ✅ **Complete field preservation** — ALL Guidewire fields preserved with auto-cleaned names
 
-**How it works**: Instead of predefined schema mappings, InsuranceLake automatically cleans and includes ALL fields from Guidewire events (e.g., `claimNumber` → `claimnumber`, `lossDate` → `lossdate`).
+**How it works**: The integration uses three complementary techniques:
+
+1. **Dynamic schema processing**: InsuranceLake automatically cleans and includes ALL fields (e.g., `claimNumber` → `claimnumber`)
+1. **Schema merge**: The Glue Catalog accumulates columns across batches — columns are never lost when events have varying fields
+1. **Dynamic stringify**: All complex nested objects are automatically converted to JSON strings, preventing Parquet struct evolution errors
 
 ## Data Tables
 
@@ -166,38 +170,41 @@ Each table contains deduplicated, current-state data with ALL available Guidewir
 
 ### Claims Analysis
 ```sql
--- Current state of all open claims
-SELECT claimnumber, claimstate, lobcode, lossdate,
-       insured_name, losslocation_city, losslocation_statecode,
-       datediff(CURRENT_DATE, lossdate) as days_open
+-- Current state of all claims (dynamic schema - all fields available)
+SELECT claimnumber, state, lobcode, lossdate, reporteddate, description
 FROM gwclaimcenter_consume.claims
-WHERE claimstate = 'open'
 ORDER BY lossdate DESC;
 ```
 
 ### Financial Reporting
 ```sql
 -- Payment summary by claim
-SELECT c.claimnumber, c.claimstate, c.lobcode,
-       COUNT(p.paymentid) as payment_count,
-       SUM(CASE WHEN p.paymentstatus = 'cleared' THEN 1 ELSE 0 END) as cleared_payments
+SELECT c.claimnumber, c.lobcode,
+       COUNT(DISTINCT p.id) as payment_count
 FROM gwclaimcenter_consume.claims c
 LEFT JOIN gwclaimcenter_consume.payments p ON c.claimnumber = p.claimnumber
-GROUP BY c.claimnumber, c.claimstate, c.lobcode
+GROUP BY c.claimnumber, c.lobcode
 ORDER BY payment_count DESC;
 ```
 
-### Operational Metrics
+### Nested Data (via Athena Views)
 ```sql
--- Claims by state and line of business
-SELECT losslocation_statecode as state,
-       lobcode,
-       COUNT(*) as claim_count,
-       AVG(datediff(reporteddate, lossdate)) as avg_days_to_report
-FROM gwclaimcenter_consume.claims
-WHERE year = '2026' AND month = '04'
-GROUP BY losslocation_statecode, lobcode
-ORDER BY claim_count DESC;
+-- Flattened contacts from nested JSON (create view first from reference SQL)
+SELECT claimnumber, contact_name, contact_type
+FROM gwclaimcenter_consume.vw_claim_contacts;
+
+-- Flattened exposures
+SELECT claimnumber, exposure_state, claimant_type
+FROM gwclaimcenter_consume.vw_claim_exposures;
+```
+
+### Audit Trail (Cleanse Layer)
+```sql
+-- Full event history for a claim (all events, not deduplicated)
+SELECT claimnumber, state, description, execution_id
+FROM gwclaimcenter.claims
+WHERE claimnumber = '000-00-066666'
+ORDER BY execution_id;
 ```
 
 ## Surge Scenarios
